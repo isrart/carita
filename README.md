@@ -80,7 +80,9 @@ Abre una sesión **nueva** de Claude Code para que coja los hooks.
 - **Arrastrar**: muévela a donde quieras, incluso pegada arriba del todo; recuerda la posición.
 - **Bocadillo**: sale pegado a la cabeza; si no cabe por arriba, aparece debajo.
 - **Clic**: cosquillas. Si está hablando, se calla. Si te está llamando, te lleva a la terminal.
-- **Clic derecho**: tamaño, disfraz, leer respuestas en voz alta, avisos con voz («¡Hecho!», «te necesito»), ir a buscarte, abrir al iniciar sesión, probar expresiones y salir.
+- **Clic derecho** (o el icono del bicho en la barra de menús, que tiene el mismo menú): ocultar/mostrar, silenciar 1 hora, tamaño, disfraz, leer respuestas en voz alta, avisos con voz («¡Hecho!», «te necesito»), ir a buscarte, abrir al iniciar sesión, probar expresiones y salir.
+- **Ocultarla**: desde la barra de menús la vuelves a mostrar; se acuerda aunque reinicies. Si te necesita estando oculta, al icono le sale una exclamación.
+- **Silenciar 1 hora**: ni voz, ni bocadillos, ni viene a buscarte. En el menú pone hasta qué hora («Silenciada hasta las 15:40») y se reactiva sola.
 - **Abrirla**: Spotlight (`Cmd + Espacio` → «Carita») o `open ~/Applications/Carita.app`.
 
 ## Cómo funciona

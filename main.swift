@@ -31,6 +31,40 @@ func roundedFont(_ size: CGFloat) -> NSFont {
     return base
 }
 
+/// Icono de la barra de menús: silueta del bicho con su hoja (plantilla, vale para claro y oscuro).
+/// Con `alert`, una exclamación al lado: te necesita aunque esté oculta.
+func statusIcon(alert: Bool) -> NSImage {
+    let img = NSImage(size: NSSize(width: alert ? 22 : 18, height: 18), flipped: false) { _ in
+        NSColor.black.setFill()
+        NSColor.black.setStroke()
+        NSBezierPath(ovalIn: NSRect(x: 1.5, y: 1, width: 15, height: 12.5)).fill()
+        // tallo y hoja
+        let stem = NSBezierPath()
+        stem.move(to: NSPoint(x: 9, y: 13))
+        stem.curve(to: NSPoint(x: 10.5, y: 16.2), controlPoint1: NSPoint(x: 8.6, y: 14.6), controlPoint2: NSPoint(x: 9.4, y: 15.6))
+        stem.lineWidth = 1.4
+        stem.lineCapStyle = .round
+        stem.stroke()
+        let leaf = NSBezierPath(ovalIn: NSRect(x: -2.6, y: -1.4, width: 5.2, height: 2.8))
+        var t = AffineTransform(translationByX: 12.4, byY: 16.4)
+        t.rotate(byDegrees: 25)
+        leaf.transform(using: t)
+        leaf.fill()
+        // ojos huecos
+        NSGraphicsContext.current?.compositingOperation = .destinationOut
+        NSBezierPath(ovalIn: NSRect(x: 5.2, y: 5.6, width: 2.6, height: 3.4)).fill()
+        NSBezierPath(ovalIn: NSRect(x: 10.2, y: 5.6, width: 2.6, height: 3.4)).fill()
+        NSGraphicsContext.current?.compositingOperation = .sourceOver
+        if alert {
+            NSBezierPath(roundedRect: NSRect(x: 19, y: 7, width: 2.2, height: 9), xRadius: 1.1, yRadius: 1.1).fill()
+            NSBezierPath(ovalIn: NSRect(x: 19, y: 2, width: 2.2, height: 2.2)).fill()
+        }
+        return true
+    }
+    img.isTemplate = true
+    return img
+}
+
 /// Panel transparente que nunca roba el foco y puede ir pegado al borde de arriba.
 final class Panel: NSPanel {
     override var canBecomeKey: Bool { false }
@@ -194,6 +228,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var lastLook = CGPoint(x: 9, y: 9)
     let speech = AVSpeechSynthesizer()
     let defaults = UserDefaults.standard
+    var statusItem: NSStatusItem!
+    var unmuteTimer: Timer?
+    var noticeTimer: Timer?
+    var noticeText = ""
     let baseSize = NSSize(width: 240, height: 224)
 
     // viaje hasta ti cuando te necesita
@@ -227,6 +265,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     /// Ir a buscarte cuando te necesita y estás en otra app (activado por defecto).
     var seeksYou: Bool { defaults.object(forKey: "seeksYou") == nil ? true : defaults.bool(forKey: "seeksYou") }
     var costumeChoice: String { defaults.string(forKey: "costume") ?? "auto" }
+    /// Escondida a mano (se recuerda entre reinicios).
+    var hiddenByUser: Bool { defaults.bool(forKey: "hidden") }
+    /// Silenciada: sin voz, sin bocadillos y sin ir a buscarte, hasta esta hora.
+    var mutedUntil: Date? {
+        let d = defaults.object(forKey: "mutedUntil") as? Date
+        return (d ?? .distantPast) > Date() ? d : nil
+    }
+    var muted: Bool { mutedUntil != nil }
+    /// Ni se ve ni habla ni viaja.
+    var away: Bool { hiddenByUser }
+    var quiet: Bool { muted || away }
 
     /// La mejor voz en español de España que tengas instalada.
     lazy var voice: AVSpeechSynthesisVoice? = {
@@ -281,7 +330,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         bubblePanel.contentView = bubbleView
         bubblePanel.alphaValue = 0
 
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.image = statusIcon(alert: false)
+        statusItem.button?.toolTip = "Carita"
         refreshMenu()
+        scheduleUnmute()
 
         // recuerda dónde lo dejaste, siempre que siga dentro de alguna pantalla
         if panel.setFrameUsingName("CaritaWindow2") {
@@ -295,7 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if let url = Bundle.main.url(forResource: "face", withExtension: "html") {
             web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
         }
-        panel.orderFrontRegardless()
+        if !away { panel.orderFrontRegardless() }
 
         // el bocadillo y la mirada siguen al bicho cuando se mueve (arrastrar, viajar, cambiar de tamaño)
         NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
@@ -365,6 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         lastMTime = modDate(statePath)
         lastSayMTime = modDate(sayPath)
         lastCostumeMTime = nil   // el disfraz sí se aplica al arrancar
+        if away { js("carita.hidden(true)") }
         checkFiles()
         mouseMoved()
     }
@@ -407,6 +461,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func speak(_ text: String, interrupt: Bool) {
+        guard !quiet else { return }
+        debugLog("voz: " + text)
         let utterance = AVSpeechUtterance(string: text.replacingOccurrences(of: "*", with: ""))
         utterance.voice = voice
         utterance.rate = 0.5
@@ -442,7 +498,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return NSPoint(x: f.minX + (vx - VB_X) * s, y: f.maxY - (vy - VB_Y) * s)
     }
 
-    func showBubble(_ text: String) {
+    /// Un aviso de la propia app (p. ej., «me callo»): sale aunque esté silenciada.
+    func notice(_ text: String) {
+        guard !away else { return }
+        showBubble(text, force: true)
+        noticeTimer?.invalidate()
+        noticeTimer = Timer.scheduledTimer(timeInterval: 3.5, target: self, selector: #selector(hideNotice),
+                                           userInfo: nil, repeats: false)
+    }
+    @objc func hideNotice() { if bubbleText == noticeText { showBubble("") } }
+
+    func showBubble(_ text: String, force: Bool = false) {
         if text.isEmpty {
             bubbleText = ""
             NSAnimationContext.runAnimationGroup { ctx in
@@ -451,6 +517,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             }
             return
         }
+        guard force || !quiet else { return }
+        if force { noticeText = text }
+        debugLog("bocadillo: " + text)
         bubbleText = text
         bubbleView.label.font = roundedFont(13 * scale)
         bubbleView.label.stringValue = text
@@ -513,6 +582,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func stateChanged(to s: String) {
         currentState = s
+        statusItem.button?.image = statusIcon(alert: s == "asking")
         if s == "asking" {
             goFindUser()
         } else if homeOrigin != nil {
@@ -521,7 +591,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func goFindUser() {
-        guard seeksYou, homeOrigin == nil, !userIsLookingAtTerminal() else { return }
+        guard seeksYou, !quiet, homeOrigin == nil, !userIsLookingAtTerminal() else { return }
         let mouse = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) else { return }
         let f = panel.frame
@@ -622,7 +692,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     /// Los ojos siguen al ratón y solo el bicho recibe clics.
     func mouseMoved() {
-        guard pageReady else { return }
+        guard pageReady, !away else { return }
         let mouse = NSEvent.mouseLocation
         let eyes = screenPoint(100, 112)
         let dx = max(-1, min(1, (mouse.x - eyes.x) / 300))
@@ -673,9 +743,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         menu.addItem(parent)
     }
 
-    func refreshMenu() {
+    /// El mismo menú para la barra de menús y para el clic derecho sobre el bicho.
+    func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
+
+        let show = NSMenuItem(title: away ? "Mostrar Carita" : "Ocultar Carita", action: #selector(toggleHidden), keyEquivalent: "")
+        show.target = self
+        menu.addItem(show)
+        if let until = mutedUntil {
+            let f = DateFormatter()
+            f.dateFormat = "HH:mm"
+            addToggle(menu, "Silenciada hasta las \(f.string(from: until))", true, #selector(toggleMute))
+        } else {
+            addToggle(menu, "Silenciar 1 hora", false, #selector(toggleMute))
+        }
+        menu.addItem(.separator())
 
         addSubmenu(menu, "Tamaño",
                    [("Pequeño", 0.75), ("Normal", 1.0), ("Grande", 1.4)].map { ($0.0, $0.1 as Any, abs(Double(scale) - $0.1) < 0.01) },
@@ -691,8 +774,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let quit = NSMenuItem(title: "Salir de Carita", action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
+        return menu
+    }
 
-        drag.menu = menu
+    func refreshMenu() {
+        drag.menu = buildMenu()
+        statusItem.menu = buildMenu()
+    }
+
+    @objc func toggleHidden() {
+        defaults.set(!hiddenByUser, forKey: "hidden")
+        applyVisibility()
+        refreshMenu()
+    }
+
+    /// Enseña o esconde el bicho (y su bocadillo) según `away`.
+    func applyVisibility() {
+        js("carita.hidden(\(away))")
+        if away {
+            speech.stopSpeaking(at: .immediate)
+            stopTravel()
+            homeOrigin = nil
+            showBubble("")
+            panel.orderOut(nil)
+            bubblePanel.orderOut(nil)
+        } else {
+            panel.orderFrontRegardless()
+            mouseMoved()
+        }
+    }
+
+    @objc func toggleMute() {
+        if muted {
+            defaults.removeObject(forKey: "mutedUntil")
+            notice("¡Ya puedo hablar otra vez!")
+        } else {
+            speech.stopSpeaking(at: .immediate)
+            notice("Vale, me callo una horita")
+            defaults.set(Date().addingTimeInterval(3600), forKey: "mutedUntil")
+            goHome()
+        }
+        scheduleUnmute()
+        refreshMenu()
+    }
+
+    /// Al acabar el silencio, el menú vuelve a «Silenciar 1 hora» solo.
+    func scheduleUnmute() {
+        unmuteTimer?.invalidate()
+        unmuteTimer = nil
+        guard let until = mutedUntil else { return }
+        unmuteTimer = Timer(fireAt: until.addingTimeInterval(0.5), interval: 0, target: self,
+                            selector: #selector(unmuteFired), userInfo: nil, repeats: false)
+        RunLoop.main.add(unmuteTimer!, forMode: .common)
+    }
+
+    @objc func unmuteFired() {
+        scheduleUnmute()
+        refreshMenu()
     }
 
     @objc func setSize(_ sender: NSMenuItem) {
