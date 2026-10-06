@@ -16,7 +16,7 @@ APP="build/Carita.app"
 
 echo "🔨 Compilando Carita $VERSION ($BUILD_NUMBER)…"
 mkdir -p build
-swiftc -O -swift-version 5 main.swift Settings.swift -o build/Carita
+swiftc -O -swift-version 5 main.swift Settings.swift Diagnostics.swift -o build/Carita
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -24,7 +24,11 @@ cp build/Carita "$APP/Contents/MacOS/Carita"
 cp Carita.icns "$APP/Contents/Resources/Carita.icns"
 { printf '<!doctype html>\n<html lang="es"><head><meta charset="utf-8">\n'; cat face.html; } > "$APP/Contents/Resources/face.html"
 # los scripts de los hooks viajan dentro de la app (para poder reinstalarlos desde ella)
-cp hook.sh carita.py hooks.py "$APP/Contents/Resources/"
+# con la versión estampada, para que la app sepa si los de ~/.carita están al día
+sed "s/^# versión: dev$/# versión: $VERSION/" hook.sh > "$APP/Contents/Resources/hook.sh"
+sed "s/^VERSION = \"dev\"/VERSION = \"$VERSION\"/" carita.py > "$APP/Contents/Resources/carita.py"
+chmod +x "$APP/Contents/Resources/hook.sh"
+cp hooks.py "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

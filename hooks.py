@@ -1,6 +1,8 @@
 """Añade o quita los hooks de Carita en ~/.claude/settings.json sin tocar lo demás.
 
-Uso: python3 hooks.py install | uninstall
+Uso: python3 hooks.py install | uninstall | status
+
+status no toca nada: imprime en JSON cuántos hooks de Carita hay y cuántos debería haber.
 """
 import json
 import os
@@ -46,8 +48,36 @@ def strip_ours(hooks):
             del hooks[event]
 
 
+def status():
+    """Qué hooks de Carita hay en settings.json comparado con PLAN."""
+    hooks = {}
+    try:
+        with open(SETTINGS, encoding="utf-8") as f:
+            text = f.read().strip()
+        hooks = (json.loads(text) if text else {}).get("hooks") or {}
+        ok = True
+    except FileNotFoundError:
+        ok = True
+    except Exception:
+        ok = False
+    expected = [(event, state) for event, items in PLAN.items() for _, state in items]
+    present = []
+    for event, groups in hooks.items():
+        for group in groups or []:
+            for h in group.get("hooks", []):
+                cmd = str(h.get("command", ""))
+                if MARK in cmd:
+                    present.append((event, cmd.rsplit(" ", 1)[-1]))
+    missing = [f"{e} {s}" for e, s in expected if (e, s) not in present]
+    print(json.dumps({"esperados": len(expected), "instalados": len(present),
+                      "faltan": missing, "settings_legible": ok}, ensure_ascii=False))
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "install"
+    if mode == "status":
+        status()
+        return
     data = {}
     if os.path.exists(SETTINGS):
         with open(SETTINGS, encoding="utf-8") as f:

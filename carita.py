@@ -13,6 +13,7 @@ import re
 import sys
 import time
 
+VERSION = "dev"   # build.sh pone aquí la versión de la app
 DIR = os.path.expanduser("~/.carita")
 MAX_VOICE = 260   # caracteres que dice en voz alta (unas 2-3 frases)
 MAX_BUBBLE = 90   # caracteres en el bocadillo

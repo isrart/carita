@@ -17,11 +17,12 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 |---|---|
 | `main.swift` | La app (AppKit, sin Xcode). Panel flotante transparente con un `WKWebView`, capa `DragView` para arrastrar y hacer clic, bocadillo nativo (`BubbleView` en su propio panel), voz (`AVSpeechSynthesizer`), viaje hasta el ratón, menú contextual. |
 | `Settings.swift` | `Config` (`~/.carita/config.json`, única fuente de verdad; migra lo que había en `UserDefaults`), `ConfigStore` (guarda y recarga si se edita a mano) y la ventana de Ajustes en SwiftUI. |
+| `Diagnostics.swift` | Ventana de diagnóstico (semáforos, reinstalar hooks, probar, copiar informe) y `Scripts`: copia `hook.sh`/`carita.py` de la app a `~/.carita` (también al arrancar si no coinciden). |
 | `face.html` | El personaje: SVG + CSS + JS. Sirve a la vez de **demo en el navegador** (sin `window.webkit`) y de cara dentro de la app (`html.app`). API global `window.carita`: `set(state)`, `poke()`, `look(x,y)`, `reply(text)`, `talking(bool)`, `costume(name)`, `travel(dir)`, `mask(bool)`, `say(text)`, `hidden(bool)`, `config({nombre, breakAfter, maskAfter, breakGap, frases})`. |
 | `hook.sh` | Lo ejecuta Claude Code en cada evento. Lee el JSON por stdin, decide el estado y lo escribe de forma atómica. |
 | `carita.py` | Ayudante de los hooks: elige disfraz por la ruta del proyecto, detecta deploys en Bash y si salieron bien, y resume la última respuesta (desde `transcript_path`) para la voz. Imprime solo el estado final. |
-| `hooks.py` | Añade/quita los hooks de Carita en `~/.claude/settings.json` sin tocar lo demás (`install` / `uninstall`). Idempotente. |
-| `build.sh` | Compila y monta `build/Carita.app` (versión desde `VERSION`). |
+| `hooks.py` | Añade/quita los hooks de Carita en `~/.claude/settings.json` sin tocar lo demás (`install` / `uninstall`; `status` solo consulta). Idempotente. |
+| `build.sh` | Compila y monta `build/Carita.app` (versión desde `VERSION`, que también estampa en las copias de `hook.sh` y `carita.py` de dentro de la app). |
 | `install.sh` / `uninstall.sh` | Instalan/desinstalan app + hooks. |
 | `Carita.icns` | Icono. |
 
@@ -40,7 +41,7 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 - **Solo el bicho recibe clics:** el panel cambia `ignoresMouseEvents` según el ratón esté o no sobre el cuerpo. No romperlo con ventanas nuevas.
 - **Nada sale del Mac** salvo lo que se pida explícitamente (p. ej., buscar actualizaciones).
 - **Ajustes solo en `config.json`**, nunca en `UserDefaults` (salvo la posición de la ventana, que guarda AppKit). Cualquier cambio pasa por `store.c` y se aplica en `configChanged(from:)`.
-- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift` y `Settings.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
+- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Settings.swift` y `Diagnostics.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
 
 ## Cómo probar
 

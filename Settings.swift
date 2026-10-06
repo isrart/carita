@@ -276,6 +276,10 @@ struct VoiceTab: View {
             .filter { $0.language == "es-ES" }
             .sorted { ($0.quality.rawValue, $1.name) > ($1.quality.rawValue, $0.name) }
     }
+    /// «Mónica (Enhanced)» → «Mónica»: la calidad ya la ponemos nosotros, en español.
+    static func displayName(_ v: AVSpeechSynthesisVoice) -> String {
+        v.name.replacingOccurrences(of: #"\s*\([^)]*\)$"#, with: "", options: .regularExpression)
+    }
     static func qualityName(_ v: AVSpeechSynthesisVoice) -> String {
         switch v.quality {
         case .premium: return "prémium"
@@ -295,7 +299,7 @@ struct VoiceTab: View {
                     Text("Automática (la mejor que tengas)").tag("")
                     Divider()
                     ForEach(VoiceTab.voices(), id: \.identifier) { v in
-                        Text("\(v.name) · \(VoiceTab.qualityName(v))").tag(v.identifier)
+                        Text("\(VoiceTab.displayName(v)) · \(VoiceTab.qualityName(v))").tag(v.identifier)
                     }
                 }
                 ValueSlider(title: "Velocidad", value: $store.c.velocidad, range: 0.3...0.7) { String(format: "%.2f", $0) }

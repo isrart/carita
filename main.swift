@@ -481,6 +481,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     let store = ConfigStore()
     let settingsWindow = SettingsWindow()
+    let diagnosticsWindow = DiagnosticsWindow()
+    var lastArrival: (state: String, at: Date)?
+    var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
     var cfg: Config { store.c }
 
     var scale: CGFloat { CGFloat(cfg.tamano) }
@@ -536,6 +539,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
+        updateScriptsIfNeeded()
 
         let size = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -948,6 +952,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             lastMTime = m
             let s = readWord(statePath)
             if !s.isEmpty {
+                lastArrival = (s, Date())
                 // si le preguntas otra cosa mientras habla, se calla
                 if workStates.contains(s) && speech.isSpeaking { speech.stopSpeaking(at: .word) }
                 js("carita.set('\(s)')")
@@ -1077,6 +1082,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        let diagnostics = NSMenuItem(title: "Diagnóstico…", action: #selector(openDiagnostics), keyEquivalent: "")
+        diagnostics.target = self
+        menu.addItem(diagnostics)
         let settings = NSMenuItem(title: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -1193,6 +1201,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc func toggleTalk() { store.c.avisosVoz.toggle() }
     @objc func toggleRead() { store.c.leerRespuestas.toggle() }
     @objc func toggleSeek() { store.c.irABuscarte.toggle() }
+
+    /// Si los scripts de ~/.carita no son los de esta versión de la app, los cambia solos.
+    /// Solo si ya estaban instalados: instalar hooks es cosa de install.sh o del diagnóstico.
+    func updateScriptsIfNeeded() {
+        guard FileManager.default.fileExists(atPath: hookPath), !Scripts.upToDate() else { return }
+        let old = Scripts.version(at: helperPath) ?? "?"
+        let ok = Scripts.copyToHome()
+        debugLog("scripts de ~/.carita: \(old) → \(appVersion) \(ok ? "actualizados" : "ERROR")")
+    }
+
+    @objc func openDiagnostics() {
+        diagnosticsWindow.show(info: DiagnosticsInfo(
+            appVersion: appVersion,
+            voiceName: { [weak self] in
+                guard let v = self?.voice else { return "Ninguna en español de España" }
+                return "\(VoiceTab.displayName(v)) (\(VoiceTab.qualityName(v)))"
+            },
+            lastArrival: { [weak self] in self?.lastArrival }))
+    }
 
     @objc func openSettings() {
         settingsWindow.show(store: store, actions: SettingsActions(

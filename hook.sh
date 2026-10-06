@@ -1,6 +1,7 @@
 #!/bin/sh
 # Lo llama Claude Code en cada evento. Apunta el estado; la app Carita lo lee.
 # Importante: no imprimir nada (en UserPromptSubmit la salida se añadiría al contexto).
+# versión: dev
 dir="$HOME/.carita"
 py=/usr/bin/python3
 helper="$dir/carita.py"

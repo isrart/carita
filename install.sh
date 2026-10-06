@@ -14,8 +14,8 @@ cp -R build/Carita.app "$DEST"
 
 echo "🪝 Conectando los hooks de Claude Code…"
 mkdir -p "$HOME/.carita"
-cp hook.sh "$HOME/.carita/hook.sh"
-cp carita.py "$HOME/.carita/carita.py"
+cp build/Carita.app/Contents/Resources/hook.sh "$HOME/.carita/hook.sh"
+cp build/Carita.app/Contents/Resources/carita.py "$HOME/.carita/carita.py"
 rm -f "$HOME/.carita/resumen.py"
 chmod +x "$HOME/.carita/hook.sh"
 python3 hooks.py install

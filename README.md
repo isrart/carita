@@ -95,6 +95,16 @@ Abre una sesión **nueva** de Claude Code para que coja los hooks.
 - **Atajos de teclado** (funcionan con cualquier app delante): `⌃⌥⌘C` la esconde o la muestra; `⌃⌥⌘M` la calla al momento y la silencia una hora (otra vez, la reactiva). Si chocan con un atajo del Mac, te avisa en el bocadillo.
 - **Abrirla**: Spotlight (`Cmd + Espacio` → «Carita») o `open ~/Applications/Carita.app`.
 
+## ¿No reacciona?
+
+Menú → **Diagnóstico…** enseña con semáforos lo que puede fallar: cuándo llegó el último aviso de Claude Code, si los hooks están en `~/.claude/settings.json`, si `hook.sh` y `python3` están bien, si los scripts son de la misma versión que la app, qué terminal ha detectado y qué voz usa.
+
+- **Reinstalar hooks** vuelve a copiar los scripts y a poner los hooks (sin tocar lo demás de tu `settings.json`).
+- **Probar** hace lo mismo que Claude Code al empezar una sesión y comprueba que Carita se entera.
+- **Copiar informe** deja el resultado en el portapapeles, para pegarlo donde haga falta.
+
+Al arrancar, si los scripts de `~/.carita` son de otra versión que la app, Carita los actualiza sola.
+
 ## Cómo funciona
 
 ```
