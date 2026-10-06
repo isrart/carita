@@ -5,6 +5,7 @@ import AppKit
 import WebKit
 import AVFoundation
 import ServiceManagement
+import CoreMediaIO
 
 let stateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".carita")
 let statePath = (stateDir as NSString).appendingPathComponent("state")
@@ -63,6 +64,96 @@ func statusIcon(alert: Bool) -> NSImage {
     }
     img.isTemplate = true
     return img
+}
+
+/// No molestar automático: detecta videollamadas y pantalla compartida.
+/// - Cámara: CoreMediaIO (`DeviceIsRunningSomewhere`), con avisos al cambiar. Vale para cualquier app.
+/// - Pantalla compartida: no hay API pública. Heurísticas: Zoom compartiendo (proceso CptHost),
+///   alguien viendo tu Mac por Compartir pantalla (screensharingd) o la pantalla duplicada
+///   (AirPlay o proyector). Meet/Teams en el navegador sin cámara no se pueden detectar.
+/// - Modo concentración: INFocusStatusCenter siempre dice «no» en una app firmada ad hoc
+///   (pide el permiso Communication Notifications), así que no se usa.
+final class Interruptions: NSObject {
+    var onChange: (() -> Void)?
+    private(set) var camera = false
+    private(set) var sharing: String?      // qué se ha detectado, o nil
+    private var watched = Set<CMIOObjectID>()
+    private var pollTimer: Timer?
+
+    func start() {
+        var addr = Interruptions.address(kCMIOHardwarePropertyDevices)
+        CMIOObjectAddPropertyListenerBlock(CMIOObjectID(kCMIOObjectSystemObject), &addr, DispatchQueue.main) { [weak self] _, _ in
+            self?.performSelector(onMainThread: #selector(Interruptions.devicesChanged), with: nil, waitUntilDone: false)
+        }
+        devicesChanged()
+        pollTimer = Timer.scheduledTimer(timeInterval: 5, target: self, selector: #selector(check), userInfo: nil, repeats: true)
+        pollTimer?.tolerance = 1
+    }
+
+    static func address(_ selector: Int) -> CMIOObjectPropertyAddress {
+        CMIOObjectPropertyAddress(mSelector: CMIOObjectPropertySelector(selector),
+                                  mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+                                  mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain))
+    }
+
+    func cameraIDs() -> [CMIOObjectID] {
+        var addr = Interruptions.address(kCMIOHardwarePropertyDevices)
+        var size: UInt32 = 0
+        guard CMIOObjectGetPropertyDataSize(CMIOObjectID(kCMIOObjectSystemObject), &addr, 0, nil, &size) == 0 else { return [] }
+        var ids = [CMIOObjectID](repeating: 0, count: Int(size) / MemoryLayout<CMIOObjectID>.size)
+        guard CMIOObjectGetPropertyData(CMIOObjectID(kCMIOObjectSystemObject), &addr, 0, nil, size, &size, &ids) == 0 else { return [] }
+        return ids
+    }
+
+    /// Cámara nueva enchufada (o la primera vez): escuchar cuándo se enciende.
+    @objc func devicesChanged() {
+        for id in cameraIDs() where !watched.contains(id) {
+            watched.insert(id)
+            var addr = Interruptions.address(kCMIODevicePropertyDeviceIsRunningSomewhere)
+            CMIOObjectAddPropertyListenerBlock(id, &addr, DispatchQueue.main) { [weak self] _, _ in
+                self?.performSelector(onMainThread: #selector(Interruptions.check), with: nil, waitUntilDone: false)
+            }
+        }
+        check()
+    }
+
+    func cameraRunning() -> Bool {
+        cameraIDs().contains { id in
+            var addr = Interruptions.address(kCMIODevicePropertyDeviceIsRunningSomewhere)
+            var on: UInt32 = 0
+            var size = UInt32(MemoryLayout<UInt32>.size)
+            return CMIOObjectGetPropertyData(id, &addr, 0, nil, size, &size, &on) == 0 && on != 0
+        }
+    }
+
+    func screenShared() -> String? {
+        let names = runningProcessNames()
+        if names.contains("CptHost") { return "Zoom compartiendo pantalla" }
+        if names.contains("screensharingd") { return "Compartir pantalla del Mac" }
+        if CGDisplayIsInMirrorSet(CGMainDisplayID()) != 0 { return "pantalla duplicada" }
+        return nil
+    }
+
+    func runningProcessNames() -> Set<String> {
+        var pids = [pid_t](repeating: 0, count: 4096)
+        let n = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        var names = Set<String>()
+        var buf = [CChar](repeating: 0, count: 256)
+        for pid in pids.prefix(max(0, Int(n))) where pid > 0 {
+            if proc_name(pid, &buf, UInt32(buf.count)) > 0 { names.insert(String(cString: buf)) }
+        }
+        return names
+    }
+
+    @objc func check() {
+        let cam = cameraRunning()
+        let share = screenShared()
+        if cam != camera || share != sharing {
+            camera = cam
+            sharing = share
+            onChange?()
+        }
+    }
 }
 
 /// Panel transparente que nunca roba el foco y puede ir pegado al borde de arriba.
@@ -274,7 +365,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
     var muted: Bool { mutedUntil != nil }
     /// Ni se ve ni habla ni viaja.
-    var away: Bool { hiddenByUser }
+    var away: Bool { hiddenByUser || dndReason != nil }
+    var dndCamera: Bool { defaults.object(forKey: "dndCamera") == nil ? true : defaults.bool(forKey: "dndCamera") }
+    var dndScreen: Bool { defaults.object(forKey: "dndScreen") == nil ? true : defaults.bool(forKey: "dndScreen") }
+    let interruptions = Interruptions()
+    /// Por qué está en «no molestar» ahora mismo (nil si no lo está).
+    var dndReason: String? {
+        if dndCamera && interruptions.camera { return "cámara encendida" }
+        if dndScreen, let s = interruptions.sharing { return s }
+        return nil
+    }
+    var wasAway = false
     var quiet: Bool { muted || away }
 
     /// La mejor voz en español de España que tengas instalada.
@@ -333,6 +434,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = statusIcon(alert: false)
         statusItem.button?.toolTip = "Carita"
+        interruptions.onChange = { [weak self] in self?.interruptionsChanged() }
+        interruptions.start()
+        wasAway = away
         refreshMenu()
         scheduleUnmute()
 
@@ -748,7 +852,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        let show = NSMenuItem(title: away ? "Mostrar Carita" : "Ocultar Carita", action: #selector(toggleHidden), keyEquivalent: "")
+        if let why = dndReason {
+            let info = NSMenuItem(title: "No molestar: \(why)", action: nil, keyEquivalent: "")
+            info.isEnabled = false
+            menu.addItem(info)
+        }
+        let show = NSMenuItem(title: hiddenByUser ? "Mostrar Carita" : "Ocultar Carita", action: #selector(toggleHidden), keyEquivalent: "")
         show.target = self
         menu.addItem(show)
         if let until = mutedUntil {
@@ -768,6 +877,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         addToggle(menu, "Leer mis respuestas en voz alta", readAloud, #selector(toggleRead))
         addToggle(menu, "Avisos con voz (¡Hecho!, te necesito…)", talks, #selector(toggleTalk))
         addToggle(menu, "Ir a buscarme cuando me necesita", seeksYou, #selector(toggleSeek))
+        let dnd = NSMenuItem(title: "No molestar automático", action: nil, keyEquivalent: "")
+        let dndMenu = NSMenu()
+        dndMenu.autoenablesItems = false
+        addToggle(dndMenu, "Al encender la cámara (videollamadas)", dndCamera, #selector(toggleDndCamera))
+        addToggle(dndMenu, "Al compartir pantalla (Zoom, Compartir pantalla, pantalla duplicada)", dndScreen, #selector(toggleDndScreen))
+        dndMenu.addItem(.separator())
+        let now = NSMenuItem(title: "Ahora: " + [interruptions.camera ? "cámara encendida" : "cámara apagada",
+                                                  interruptions.sharing ?? "sin compartir pantalla"].joined(separator: ", "),
+                             action: nil, keyEquivalent: "")
+        now.isEnabled = false
+        dndMenu.addItem(now)
+        dnd.submenu = dndMenu
+        menu.addItem(dnd)
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
@@ -782,6 +904,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         statusItem.menu = buildMenu()
     }
 
+    func interruptionsChanged() {
+        debugLog("no molestar: \(dndReason ?? "no")")
+        if away != wasAway { applyVisibility() }
+        refreshMenu()
+    }
+
+    @objc func toggleDndCamera() {
+        defaults.set(!dndCamera, forKey: "dndCamera")
+        interruptionsChanged()
+    }
+
+    @objc func toggleDndScreen() {
+        defaults.set(!dndScreen, forKey: "dndScreen")
+        interruptionsChanged()
+    }
+
     @objc func toggleHidden() {
         defaults.set(!hiddenByUser, forKey: "hidden")
         applyVisibility()
@@ -790,6 +928,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     /// Enseña o esconde el bicho (y su bocadillo) según `away`.
     func applyVisibility() {
+        wasAway = away
         js("carita.hidden(\(away))")
         if away {
             speech.stopSpeaking(at: .immediate)

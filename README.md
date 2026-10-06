@@ -49,6 +49,14 @@ Tras 90 minutos seguidos de trabajo, se estira y te dice cuánto llevas. Si lo i
 
 Si necesito que decidas algo y estás en otra app, Carita cruza la pantalla corriendo hasta donde tienes el ratón. Un clic sobre ella te lleva a la terminal donde está Claude Code, y cuando respondes vuelve a su sitio. Se desactiva en clic derecho → «Ir a buscarme cuando me necesita».
 
+## No molesta en las llamadas
+
+Si enciendes la cámara (Zoom, Meet, FaceTime, Teams… cualquier app), Carita se esconde y se calla; cuando la apagas, vuelve sola. Mientras tanto sigue enterándose de lo que hace Claude Code, así que vuelve al día.
+
+También se esconde si compartes pantalla con Zoom, si alguien está viendo tu Mac con Compartir pantalla o si duplicas la pantalla (AirPlay o proyector). Compartir pantalla desde Meet o Teams en el navegador sin cámara no se puede detectar. El modo concentración del Mac tampoco: macOS no se lo cuenta a una app como esta.
+
+Se configura en el menú → «No molestar automático», donde también ves qué detecta ahora mismo.
+
 ## Te lee las respuestas
 
 Cuando termino de responder, Carita te dice en voz alta la idea general (las primeras frases, sin código, tablas ni rutas largas) y pone la frase principal en el bocadillo, moviendo la boca mientras habla.
