@@ -43,11 +43,22 @@ final class DragView: NSView {
     var onClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragEnd: (() -> Void)?
+    var onMouseMoved: (() -> Void)?
     private var startMouse = NSPoint.zero
     private var startOrigin = NSPoint.zero
     private var moved = false
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    // con la app en segundo plano, el ratón encima del bicho solo llega por aquí
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+                                       owner: self, userInfo: nil))
+    }
+    override func mouseMoved(with event: NSEvent) { onMouseMoved?() }
+    override func mouseExited(with event: NSEvent) { onMouseMoved?() }
 
     override func mouseDown(with event: NSEvent) {
         startMouse = NSEvent.mouseLocation
@@ -170,7 +181,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var bubbleView: BubbleView!
     var bubbleText = ""
     var bubbleAnchor = NSRect.zero
-    var timer: Timer?
+    var dirSource: DispatchSourceFileSystemObject?
+    var fallbackTimer: Timer?
+    var mouseMonitors: [Any] = []
     var lastMTime: Date?
     var lastSayMTime: Date?
     var lastCostumeMTime: Date?
@@ -255,6 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         drag.onClick = { [weak self] in self?.clicked() }
         drag.onDragStart = { [weak self] in self?.stopTravel() }
         drag.onDragEnd = { [weak self] in self?.homeOrigin = nil }   // si lo sueltas en otro sitio, se queda ahí
+        drag.onMouseMoved = { [weak self] in self?.mouseMoved() }
         container.addSubview(drag)
         panel.contentView = container
 
@@ -283,8 +297,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
         panel.orderFrontRegardless()
 
-        timer = Timer.scheduledTimer(timeInterval: 0.05, target: self, selector: #selector(tick),
-                                     userInfo: nil, repeats: true)
+        // el bocadillo y la mirada siguen al bicho cuando se mueve (arrastrar, viajar, cambiar de tamaño)
+        NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
+                                               name: NSWindow.didMoveNotification, object: panel)
+        NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
+                                               name: NSWindow.didResizeNotification, object: panel)
+        startWatching()
+    }
+
+    // MARK: vigilar archivos y ratón (sin sondeo continuo)
+
+    /// Los hooks escriben con `mv`, así que lo que cambia es la carpeta: se vigila ~/.carita.
+    func startWatching() {
+        let fd = open(stateDir, O_EVTONLY)
+        if fd >= 0 {
+            let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+            src.setEventHandler { [weak self] in
+                self?.performSelector(onMainThread: #selector(AppDelegate.checkFiles), with: nil, waitUntilDone: false)
+            }
+            src.setCancelHandler { close(fd) }
+            src.resume()
+            dirSource = src
+        }
+
+        // el ratón: fuera de la app (monitor global, no pide permisos) y dentro (monitor local)
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in self?.mouseMoved() }) {
+            mouseMonitors.append(g)
+        }
+        if let l = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] e in self?.mouseMoved(); return e }) {
+            mouseMonitors.append(l)
+        }
+
+        // respaldo lento por si se pierde algún evento
+        fallbackTimer = Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(fallbackTick),
+                                             userInfo: nil, repeats: true)
+        fallbackTimer?.tolerance = 0.5
+    }
+
+    @objc func fallbackTick() {
+        checkFiles()
+        mouseMoved()
+    }
+
+    @objc func panelMoved() {
+        if !bubbleText.isEmpty && panel.frame != bubbleAnchor { layoutBubble() }
+        mouseMoved()
     }
 
     func makePanel(_ rect: NSRect) -> Panel {
@@ -307,6 +365,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         lastMTime = modDate(statePath)
         lastSayMTime = modDate(sayPath)
         lastCostumeMTime = nil   // el disfraz sí se aplica al arrancar
+        checkFiles()
+        mouseMoved()
     }
 
     func userContentController(_ userContentController: WKUserContentController,
@@ -328,7 +388,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     func js(_ code: String) {
         guard pageReady else { return }
+        debugLog(code)
         web.evaluateJavaScript(code, completionHandler: nil)
+    }
+
+    /// Para pruebas: `open --env CARITA_LOG=/ruta/log build/Carita.app` apunta cada llamada a la cara.
+    let debugLogPath = ProcessInfo.processInfo.environment["CARITA_LOG"]
+    func debugLog(_ line: String) {
+        guard let path = debugLogPath else { return }
+        let text = String(format: "%.3f %@\n", Date().timeIntervalSince1970, line)
+        if let h = FileHandle(forWritingAtPath: path) {
+            h.seekToEndOfFile()
+            h.write(text.data(using: .utf8)!)
+            h.closeFile()
+        } else {
+            try? text.write(toFile: path, atomically: false, encoding: .utf8)
+        }
     }
 
     func speak(_ text: String, interrupt: Bool) {
@@ -493,7 +568,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if p >= 1 { stopTravel() }
     }
 
-    // MARK: polling
+    // MARK: archivos de estado
 
     func modDate(_ path: String) -> Date? {
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
@@ -510,7 +585,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         js("carita.costume('\(c.isEmpty ? "none" : c)')")
     }
 
-    @objc func tick() {
+    @objc func checkFiles() {
         guard pageReady else { return }
 
         if let m = modDate(statePath), m != lastMTime {
@@ -543,11 +618,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
                 speak(text, interrupt: true)
             }
         }
+    }
 
-        // el bocadillo sigue a la cabeza
-        if !bubbleText.isEmpty && panel.frame != bubbleAnchor { layoutBubble() }
-
-        // los ojos siguen al ratón
+    /// Los ojos siguen al ratón y solo el bicho recibe clics.
+    func mouseMoved() {
+        guard pageReady else { return }
         let mouse = NSEvent.mouseLocation
         let eyes = screenPoint(100, 112)
         let dx = max(-1, min(1, (mouse.x - eyes.x) / 300))
@@ -557,11 +632,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             js(String(format: "carita.look(%.3f,%.3f)", dx, dy))
         }
 
-        // solo el bicho recibe clics; el resto de la ventana deja pasar el clic
-        // a lo que haya detrás. No se toca mientras arrastras.
+        // el resto de la ventana deja pasar el clic a lo que haya detrás. No se toca mientras arrastras.
         if NSEvent.pressedMouseButtons == 0 {
             let over = isOverCreature(mouse)
-            if panel.ignoresMouseEvents == over { panel.ignoresMouseEvents = !over }
+            if panel.ignoresMouseEvents == over { panel.ignoresMouseEvents = !over; debugLog("clicable \(over)") }
         }
     }
 

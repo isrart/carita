@@ -238,6 +238,9 @@ html.app .bubble{display:none}
 #c.travel .all{animation:bounce .2s ease-in-out infinite}
 #c.travel .bodyg{animation:none;transform:rotate(var(--lean,0deg))}
 
+/* dormido u oculto: todo quieto, para no gastar batería */
+#c.paused,#c.paused *{animation-play-state:paused!important}
+
 @media (prefers-reduced-motion: reduce){ #c *,#c{animation-duration:0s!important;animation-iteration-count:1!important} }
 </style>
 
@@ -555,6 +558,7 @@ html.app .bubble{display:none}
   let cur = "idle", mx = 0, my = 0;
   let lastActivity = Date.now(), lastBubble = 0, replyUntil = 0, isTalking = false;
   let afterT, bubbleT, pendingT, pokeT, queuedT, lockUntil = 0;
+  let blinkT, loopT, paused = false, hiddenApp = false;
   // break reminder: after this much continuous work, a stretch; if ignored, the sleep mask
   const BREAK_AFTER = 90 * 60e3, MASK_AFTER = 10 * 60e3, BREAK_GAP = 5 * 60e3;
   let workStart = Date.now(), breakAskedAt = 0, masked = false;
@@ -615,8 +619,20 @@ html.app .bubble{display:none}
       if (cfg.speak && APP) host.postMessage({type: "say", text: txt});
     }
     if (cfg.after) afterT = setTimeout(() => apply(cfg.after[0], true), cfg.after[1]);
+    updatePaused();
     markChip();
   }
+
+  // dormido u oculto: se paran animaciones, parpadeo y el reloj de aburrimiento
+  function updatePaused() {
+    const p = cur === "sleeping" || hiddenApp;
+    if (p === paused) return;
+    paused = p;
+    svg.classList.toggle("paused", p);
+    clearTimeout(blinkT); clearInterval(loopT);
+    if (!p) { blink(); startLoop(); }
+  }
+  function setHidden(on) { hiddenApp = !!on; updatePaused(); }
 
   // public API (the Mac app calls these)
   function set(s) {
@@ -692,7 +708,7 @@ html.app .bubble{display:none}
     svg.classList.toggle("travel", !!dir);
     svg.style.setProperty("--lean", (dir * 9) + "deg");
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t)};
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden};
 
   // fireworks particles
   const fw = document.getElementById("fireworks");
@@ -709,17 +725,19 @@ html.app .bubble{display:none}
     });
 
   // blinking
-  (function blink() {
-    setTimeout(() => {
+  function blink() {
+    blinkT = setTimeout(() => {
       svg.classList.add("blink");
       setTimeout(() => svg.classList.remove("blink"), 130);
       blink();
     }, 2200 + Math.random() * 4200);
-  })();
+  }
+  blink();
 
   // boredom, chatter and stale states (app only)
-  if (APP) {
-    setInterval(() => {
+  function startLoop() {
+    if (!APP) return;
+    loopT = setInterval(() => {
       const idleFor = Date.now() - lastActivity;
       if (S[cur] && S[cur].work && idleFor > 180000) apply("idle", true);
       else if (cur === "asking" && idleFor > 600000) apply("idle", true);
@@ -736,6 +754,9 @@ html.app .bubble{display:none}
         const line = pick("mask"); say(line); speakLine(line);
       }
     }, 10000);
+  }
+  if (APP) {
+    startLoop();
     apply("hello");
     return;
   }
