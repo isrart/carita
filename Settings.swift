@@ -162,6 +162,7 @@ struct SettingsActions {
     var testVoice: () -> Void
     var dndStatus: () -> String
     var pauseHotKeys: (Bool) -> Void
+    var editPhrases: () -> Void
 }
 
 final class SettingsWindow {
@@ -193,7 +194,7 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            GeneralTab(store: store).tabItem { Label("General", systemImage: "gearshape") }
+            GeneralTab(store: store, actions: actions).tabItem { Label("General", systemImage: "gearshape") }
             VoiceTab(store: store, actions: actions).tabItem { Label("Voz", systemImage: "speaker.wave.2") }
             BreakTab(store: store).tabItem { Label("Descanso", systemImage: "cup.and.saucer") }
             CostumeTab(store: store).tabItem { Label("Disfraces", systemImage: "theatermasks") }
@@ -233,6 +234,7 @@ struct ValueSlider: View {
 
 struct GeneralTab: View {
     @ObservedObject var store: ConfigStore
+    let actions: SettingsActions
     @State private var login = SMAppService.mainApp.status == .enabled
 
     var body: some View {
@@ -245,6 +247,13 @@ struct GeneralTab: View {
             Section {
                 ValueSlider(title: "Tamaño", value: $store.c.tamano, range: 0.6...1.6, step: 0.05) { "\(Int(($0 * 100).rounded())) %" }
                 Toggle("Ir a buscarme cuando me necesita", isOn: $store.c.irABuscarte)
+            }
+            Section {
+                LabeledContent("Lo que dice") {
+                    Button("Editar frases…") { actions.editPhrases() }
+                }
+            } footer: {
+                Hint("Abre ~/.carita/frases.json (lo crea con las frases de serie si no existe). Cada estado que pongas sustituye a sus frases; con \"+done\" añades en vez de sustituir. Al guardar, la siguiente frase ya es la nueva.")
             }
             Section {
                 Toggle("Abrir al iniciar sesión", isOn: Binding(get: { login }, set: { on in

@@ -13,6 +13,7 @@ let statePath = (stateDir as NSString).appendingPathComponent("state")
 let sayPath = (stateDir as NSString).appendingPathComponent("say")
 let costumePath = (stateDir as NSString).appendingPathComponent("costume")
 let termPath = (stateDir as NSString).appendingPathComponent("term")
+let phrasesPath = (stateDir as NSString).appendingPathComponent("frases.json")
 let workStates: Set<String> = ["hello", "thinking", "reading", "writing", "running", "browsing", "delegating", "deploying"]
 
 // Geometría del dibujo: face.html usa viewBox "-20 -24 240 224" en la app.
@@ -454,6 +455,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var noticeTimer: Timer?
     var noticeText = ""
     var pendingNotice: String?
+    var lastPhrasesData: Data?
     let baseSize = NSSize(width: 240, height: 224)
 
     // viaje hasta ti cuando te necesita
@@ -622,6 +624,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
 
         watchFile(configPath)
+        watchFile(phrasesPath)
 
         // el ratón: fuera de la app (monitor global, no pide permisos) y dentro (monitor local)
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
@@ -659,7 +662,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     /// Tras un `mv` el descriptor apunta al archivo viejo: se vuelve a abrir.
     func rewatchFiles() {
-        for path in [configPath] {
+        for path in [configPath, phrasesPath] {
             var st = stat()
             let exists = stat(path, &st) == 0
             if exists && fileSources[path]?.inode != UInt64(st.st_ino) { watchFile(path) }
@@ -939,6 +942,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         guard pageReady else { return }
         rewatchFiles()
         store.reloadIfChanged()
+        if phrasesData() != lastPhrasesData { sendFaceConfig() }
 
         if let m = modDate(statePath), m != lastMTime {
             lastMTime = m
@@ -1201,16 +1205,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             pauseHotKeys: { [weak self] paused in
                 guard let self = self else { return }
                 if paused { self.hotKeys.unregister(1); self.hotKeys.unregister(2) } else { self.registerHotKeys(announce: false) }
-            }))
+            },
+            editPhrases: { [weak self] in self?.editPhrases() }))
     }
 
-    /// Lo que la cara necesita saber de la config (nombre y tiempos del descanso, en ms).
+    func phrasesData() -> Data? { FileManager.default.contents(atPath: phrasesPath) }
+
+    /// Las frases de ~/.carita/frases.json. Si no existe, ninguna (se usan las de serie);
+    /// si está mal, las de serie y un aviso con la línea del error.
+    func loadPhrases() -> [String: Any] {
+        let data = phrasesData()
+        lastPhrasesData = data
+        guard let data = data, !data.isEmpty else { return [:] }
+        do {
+            guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                notice("frases.json tiene que ser un objeto: {\"done\": [\"…\"]}. Sigo con las de serie.")
+                return [:]
+            }
+            return obj
+        } catch {
+            notice("Hay un error en frases.json\(jsonErrorLine(error, data).map { ", línea \($0)" } ?? ""). Sigo con las de serie.")
+            return [:]
+        }
+    }
+
+    /// La línea del error de JSON: del mensaje («line 3») o contando saltos hasta el carácter que falla.
+    func jsonErrorLine(_ error: Error, _ data: Data) -> Int? {
+        let ns = error as NSError
+        let text = [ns.userInfo[NSDebugDescriptionErrorKey] as? String, ns.localizedDescription].compactMap { $0 }.joined(separator: " ")
+        func number(after word: String) -> Int? {
+            guard let r = text.range(of: word + " ") else { return nil }
+            return Int(text[r.upperBound...].prefix { $0.isNumber })
+        }
+        if let line = number(after: "line") { return line }
+        if let idx = (ns.userInfo["NSJSONSerializationErrorIndex"] as? Int) ?? number(after: "character") {
+            return data.prefix(idx).filter { $0 == 10 }.count + 1
+        }
+        return nil
+    }
+
+    /// Crea frases.json con las de serie (si no existe) y lo abre en tu editor.
+    func editPhrases() {
+        let url = URL(fileURLWithPath: phrasesPath)
+        if FileManager.default.fileExists(atPath: phrasesPath) {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        web.evaluateJavaScript("JSON.stringify(carita.frasesDeSerie())") { result, _ in
+            var obj: [String: Any] = ["_ayuda": "Cada clave sustituye a las frases de serie de ese estado; \"+done\" añade en vez de sustituir. {n} es tu nombre y {t} el tiempo trabajado. Borra las que no quieras cambiar."]
+            if let json = result as? String, let data = json.data(using: .utf8),
+               let serie = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                obj.merge(serie) { a, _ in a }
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) {
+                try? data.write(to: url, options: .atomic)
+            }
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Lo que la cara necesita saber de la config (nombre, tiempos del descanso en ms y frases).
     func sendFaceConfig() {
         let face: [String: Any] = [
             "nombre": cfg.nombre,
             "breakAfter": cfg.descansoMinutos * 60_000,
             "maskAfter": cfg.antifazMinutos * 60_000,
             "breakGap": cfg.pausaMinutos * 60_000,
+            "frases": loadPhrases(),
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: face),
               let json = String(data: data, encoding: .utf8) else { return }

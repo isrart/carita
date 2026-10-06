@@ -533,6 +533,23 @@ html.app .bubble{display:none}
     idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
   };
 
+  // las de serie, para volver a ellas si frases.json desaparece o tiene errores
+  const FRASES_SERIE = JSON.parse(JSON.stringify(FRASES));
+  // frases.json: cada clave sustituye a la de serie; "+clave" añade en vez de sustituir;
+  // las que empiezan por "_" son notas y se ignoran
+  function setFrases(custom) {
+    Object.keys(FRASES).forEach(k => delete FRASES[k]);
+    Object.assign(FRASES, JSON.parse(JSON.stringify(FRASES_SERIE)));
+    if (!custom || typeof custom !== "object") return;
+    for (const [k, v] of Object.entries(custom)) {
+      if (k.startsWith("_")) continue;
+      const list = (Array.isArray(v) ? v : [v]).filter(x => typeof x === "string" && x.trim());
+      if (!list.length) continue;
+      if (k.startsWith("+")) { const key = k.slice(1); FRASES[key] = (FRASES[key] || []).concat(list); }
+      else FRASES[k] = list;
+    }
+  }
+
   const S = {
     idle:      {eyes:"open",    mouth:"smile",  brows:"none"},
     hello:     {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, after:["idle", 4200]},
@@ -715,8 +732,10 @@ html.app .bubble{display:none}
     if (c.breakAfter > 0) BREAK_AFTER = c.breakAfter;
     if (c.maskAfter > 0) MASK_AFTER = c.maskAfter;
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;
+    if ("frases" in c) setFrases(c.frases);
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config};
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config,
+    frasesDeSerie: () => FRASES_SERIE};
 
   // fireworks particles
   const fw = document.getElementById("fireworks");

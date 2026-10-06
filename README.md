@@ -115,6 +115,22 @@ Menú → **Ajustes…** (`⌘,` con el menú abierto). Todo se aplica al moment
 
 Se guardan en `~/.carita/config.json`. Puedes editarlo a mano; si lo guardas con un error, Carita te avisa y sigue con lo de antes.
 
+## Frases a tu gusto
+
+Ajustes → General → **Editar frases…** crea `~/.carita/frases.json` con todas las frases de serie y lo abre en tu editor. Al guardar, la siguiente frase ya es la nueva, sin reiniciar nada:
+
+```json
+{
+  "done": ["¡Hecho, máquina!", "Otra más al saco"],
+  "+asking": ["Isra, que te estoy esperando…"]
+}
+```
+
+- Cada estado que pongas **sustituye** a sus frases de serie; los que no pongas se quedan como estaban.
+- Con `+` delante (`"+done"`) **añades** frases a las de serie en vez de sustituirlas.
+- `{n}` es tu nombre y `{t}` el tiempo que llevas trabajando (en `stretch`).
+- Si el archivo tiene un error, Carita te dice en qué línea y sigue con las de serie.
+
 ## Personalizar el personaje
 
 El dibujo está en `face.html`: frases (`FRASES`), colores en `:root` (`--clay`, `--leaf`…). Puedes abrir `face.html` en el navegador para ver la demo. Tras cambiarlo, vuelve a ejecutar `bash install.sh`.
