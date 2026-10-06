@@ -1,0 +1,830 @@
+<title>Carita</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap">
+<style>
+/* Layout: in the Mac app the whole window is one stage (creature + speech bubble, transparent).
+   In a browser it becomes a demo page: stage card + state chips that show which hook triggers what. */
+:root{
+  --clay:#E27A52; --clay-dark:#B65A3C; --clay-light:#F6A685; --ink:#2B1E1A;
+  --cheek:#FF8FA3; --leaf:#5DB36A; --hat:#F5C242; --bubble:#FFFFFF;
+  --bg:#ECEEE6; --surface:#FAFBF7; --fg:#23231F; --muted:#66675F; --line:#D5D8CC; --chip:#FFFFFF; --chip-on:#2B1E1A; --chip-on-fg:#FFF4EC;
+  --font: ui-rounded, "Nunito", "SF Pro Rounded", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#1B1C19; --surface:#24251F; --fg:#ECEBE4; --muted:#A4A49A; --line:#383A32; --chip:#2B2C26; --chip-on:#F6A685; --chip-on-fg:#2B1E1A; color-scheme:dark }
+}
+:root[data-theme="dark"]{ --bg:#1B1C19; --surface:#24251F; --fg:#ECEBE4; --muted:#A4A49A; --line:#383A32; --chip:#2B2C26; --chip-on:#F6A685; --chip-on-fg:#2B1E1A; color-scheme:dark }
+
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);-webkit-font-smoothing:antialiased}
+.page{max-width:720px;margin:0 auto;padding:28px 16px 40px;display:flex;flex-direction:column;gap:22px;align-items:center}
+.intro{text-align:center;display:flex;flex-direction:column;gap:6px;max-width:34rem}
+.intro h1{margin:0;font-weight:900;font-size:2.4rem;letter-spacing:-.02em;text-wrap:balance}
+.intro p{margin:0;color:var(--muted);font-size:1rem;line-height:1.45;font-weight:600}
+
+/* ---------- stage ---------- */
+.stage{position:relative;width:min(300px,100%);aspect-ratio:240/270;container-type:inline-size;
+  background:radial-gradient(circle at 50% 78%, color-mix(in srgb, var(--clay) 14%, var(--surface)) 0, var(--surface) 62%);
+  border:1px solid var(--line);border-radius:28px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.stage svg{position:absolute;left:0;right:0;bottom:0;width:100%;height:74%;overflow:visible}
+
+.bubble{position:absolute;left:50%;top:3%;max-width:90%;width:max-content;box-sizing:border-box;
+  background:var(--bubble);color:var(--ink);border:2.5px solid var(--ink);border-radius:16px;
+  padding:.45em .8em;font:800 clamp(10px,5.6cqw,26px)/1.18 var(--font);text-align:center;text-wrap:balance;
+  box-shadow:0 .18em 0 rgba(43,30,26,.22);opacity:0;transform:translateX(-50%) translateY(6px) scale(.7);
+  transform-origin:50% 100%;z-index:2;transition:opacity .18s ease, transform .28s cubic-bezier(.3,1.6,.5,1);pointer-events:none}
+.bubble::after{content:"";position:absolute;left:50%;bottom:-9px;width:12px;height:12px;background:var(--bubble);
+  border-right:2.5px solid var(--ink);border-bottom:2.5px solid var(--ink);transform:translateX(-50%) rotate(45deg)}
+.bubble.show{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+
+/* ---------- chips (demo only) ---------- */
+.controls{width:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:14px;
+  padding:9px 12px;text-align:left;font-family:var(--font);cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0}
+.chip b{font-weight:800;font-size:.95rem}
+.chip span{font:500 .72rem/1.3 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.chip[aria-pressed="true"]{background:var(--chip-on);color:var(--chip-on-fg);border-color:var(--chip-on)}
+.chip[aria-pressed="true"] span{color:inherit;opacity:.75}
+.costumes{width:100%;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.costumes small{color:var(--muted);font-weight:700;font-size:.85rem;margin-right:4px}
+.costumes .chip{flex:1 1 auto;padding:7px 12px;flex-direction:row;justify-content:center}
+.chip:focus-visible,.tour:focus-visible{outline:3px solid var(--clay);outline-offset:2px}
+.bar{display:flex;gap:10px;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap}
+.bar small{color:var(--muted);font-weight:600;font-size:.85rem}
+.tour{appearance:none;border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:999px;padding:6px 14px;font:800 .85rem var(--font);cursor:pointer}
+
+/* ---------- app mode: just the creature, transparent ---------- */
+html.app,html.app body{background:transparent;overflow:hidden}
+html.app .page{padding:0;max-width:none;height:100%;gap:0}
+html.app [data-demo]{display:none!important}
+html.app .stage{width:100vw;height:100vh;aspect-ratio:auto;border:0;background:none;border-radius:0}
+html.app .stage svg{height:100%}
+html.app .bubble{display:none}
+
+/* ================= creature ================= */
+#c *{transform-box:fill-box;transform-origin:center}
+#c [transform]{transform-box:view-box;transform-origin:0 0}
+#c .all,#c .bodyg{transform-box:view-box;transform-origin:100px 186px}
+.prop{opacity:0;transition:opacity .2s ease}
+.eye-alt,.mo{opacity:0}
+.pupil{transform:translate(var(--lx,0px),var(--ly,0px));transition:transform .14s ease-out}
+
+/* eyes */
+#c[data-eyes="open"] .eo,#c[data-eyes="happy"] .eh,#c[data-eyes="closed"] .ec,#c[data-eyes="squeeze"] .ex{opacity:1}
+#c:not([data-eyes="open"]) .eo{opacity:0}
+.eo .blinker{transition:transform .07s}
+#c.blink .eo .blinker{transform:scaleY(.08)}
+/* mouths */
+#c[data-mouth="smile"] .m-smile,#c[data-mouth="big"] .m-big,#c[data-mouth="o"] .m-o,#c[data-mouth="flat"] .m-flat,
+#c[data-mouth="tongue"] .m-tongue,#c[data-mouth="grit"] .m-grit,#c[data-mouth="wow"] .m-wow,#c[data-mouth="yawn"] .m-yawn,
+#c[data-mouth="wobble"] .m-wobble{opacity:1}
+/* brows */
+.brow{opacity:0;transition:transform .2s ease,opacity .2s}
+#c:not([data-brows="none"]) .brow{opacity:1}
+#c[data-brows="angry"] .brow-l{transform:translateY(5px) rotate(18deg)}
+#c[data-brows="angry"] .brow-r{transform:translateY(5px) rotate(-18deg)}
+#c[data-brows="up"] .brow{transform:translateY(-7px)}
+#c[data-brows="think"] .brow-r{transform:translateY(-8px) rotate(-8deg)}
+#c[data-brows="think"] .brow-l{transform:translateY(2px)}
+#c[data-brows="focus"] .brow{transform:translateY(4px)}
+.blush{opacity:.35;transition:opacity .3s}
+#c[data-s="done"] .blush,#c[data-s="shipped"] .blush,#c[data-s="hello"] .blush,#c[data-s="poke"] .blush,#c[data-s="bye"] .blush{opacity:.85}
+
+/* props per state */
+#c[data-s="reading"] .glasses,
+#c[data-s="writing"] .pencil,
+#c[data-s="running"] .hat,#c[data-s="running"] .sweat,
+#c[data-s="browsing"] .loupe,
+#c[data-s="delegating"] .mini,
+#c[data-s="asking"] .bang,
+#c[data-s="thinking"] .dots,
+#c[data-s="sleepy"] .lids,
+#c[data-s="sleeping"] .zzz,#c[data-s="sleeping"] .snot,
+#c[data-s="done"] .confetti{opacity:1}
+
+/* ambient motion */
+.sprout{transform-box:view-box!important;transform-origin:100px 68px!important;animation:sway 3.2s ease-in-out infinite}
+@keyframes sway{50%{transform:rotate(9deg)}}
+#c[data-s="thinking"] .sprout{animation:twirl 1.1s linear infinite}
+@keyframes twirl{0%{transform:rotate(0)}25%{transform:rotate(16deg)}75%{transform:rotate(-16deg)}100%{transform:rotate(0)}}
+
+.bodyg{animation:breathe 3.4s ease-in-out infinite}
+@keyframes breathe{50%{transform:scale(1.02,.975)}}
+#c[data-s="sleeping"] .bodyg{animation:breathe 4.6s ease-in-out infinite}
+#c[data-s="writing"] .bodyg{animation:jitter .32s steps(2) infinite}
+@keyframes jitter{50%{transform:translateX(1.2px) scale(1.01,.99)}}
+#c[data-s="running"] .all{animation:bounce .34s ease-in-out infinite}
+@keyframes bounce{50%{transform:translateY(-7px)}}
+#c[data-s="asking"] .all{animation:jump .9s cubic-bezier(.3,0,.5,1) infinite}
+@keyframes jump{0%,100%{transform:translateY(0) scale(1.06,.92)}15%{transform:translateY(0) scale(1)}45%{transform:translateY(-20px) scale(.96,1.05)}75%{transform:translateY(0) scale(1.04,.95)}}
+#c[data-s="done"] .all,#c[data-s="hello"] .all{animation:hop .55s cubic-bezier(.3,0,.5,1) 3}
+@keyframes hop{0%,100%{transform:translateY(0)}45%{transform:translateY(-14px) scale(.97,1.04)}}
+#c[data-s="thinking"] .all{animation:ponder 2.6s ease-in-out infinite}
+@keyframes ponder{25%{transform:rotate(-4deg)}75%{transform:rotate(4deg)}}
+#c[data-s="browsing"] .all{transform:rotate(4deg);transition:transform .3s}
+#c[data-s="sleepy"] .all{animation:nod 3s ease-in-out infinite}
+@keyframes nod{60%{transform:translateY(3px) rotate(-3deg)}}
+#c[data-s="sleeping"] .all{transform:rotate(-7deg);transition:transform .6s}
+#c[data-s="poke"] .all{animation:squish .5s cubic-bezier(.3,1.8,.5,1)}
+@keyframes squish{0%{transform:scale(1.25,.72)}100%{transform:scale(1)}}
+.shadow{transition:transform .2s}
+#c[data-s="asking"] .shadow{animation:shrink .9s cubic-bezier(.3,0,.5,1) infinite}
+@keyframes shrink{45%{transform:scale(.7)}}
+
+/* arms */
+.arm-l{transform-box:view-box!important;transform-origin:48px 122px!important;transition:transform .3s}
+.arm-r{transform-box:view-box!important;transform-origin:152px 122px!important;transition:transform .3s}
+#c[data-s="done"] .arm-l{transform:rotate(130deg)}
+#c[data-s="done"] .arm-r{transform:rotate(-130deg)}
+#c[data-s="hello"] .arm-r,#c[data-s="bye"] .arm-r{animation:wave .4s ease-in-out infinite alternate}
+@keyframes wave{from{transform:rotate(-105deg)}to{transform:rotate(-145deg)}}
+#c[data-s="asking"] .arm-l{animation:waveL .35s ease-in-out infinite alternate}
+#c[data-s="asking"] .arm-r{animation:wave .35s ease-in-out infinite alternate}
+@keyframes waveL{from{transform:rotate(105deg)}to{transform:rotate(145deg)}}
+#c[data-s="writing"] .arm-r{transform:rotate(-40deg)}
+#c[data-s="browsing"] .arm-r{transform:rotate(-55deg)}
+
+/* prop motion */
+#c[data-s="reading"] .pupil{animation:scan 1.7s ease-in-out infinite}
+@keyframes scan{0%,100%{transform:translate(-4px,2px)}50%{transform:translate(4px,2px)}}
+.pencil{transform-box:view-box!important;transform-origin:158px 160px!important}
+#c[data-s="writing"] .pencil{animation:scribble .22s ease-in-out infinite alternate}
+@keyframes scribble{from{transform:rotate(-6deg)}to{transform:rotate(8deg) translateY(-2px)}}
+#c[data-s="running"] .sweat{animation:drip 1s ease-in infinite}
+@keyframes drip{0%{transform:translateY(-4px);opacity:0}20%{opacity:1}100%{transform:translateY(16px);opacity:0}}
+#c[data-s="browsing"] .eye-r .big{transform:scale(1.3)}
+.big{transition:transform .25s}
+.dots circle{opacity:0}
+#c[data-s="thinking"] .dots circle{animation:pop 1.5s ease-in-out infinite}
+#c[data-s="thinking"] .dots circle:nth-child(2){animation-delay:.25s}
+#c[data-s="thinking"] .dots circle:nth-child(3){animation-delay:.5s}
+@keyframes pop{0%,15%{opacity:0;transform:scale(.3)}35%,80%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.8)}}
+#c[data-s="sleeping"] .zzz text{animation:float 3s ease-in infinite;opacity:0}
+#c[data-s="sleeping"] .zzz text:nth-child(2){animation-delay:1s}
+#c[data-s="sleeping"] .zzz text:nth-child(3){animation-delay:2s}
+@keyframes float{0%{opacity:0;transform:translate(0,8px) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(10px,-18px) scale(1.15)}}
+.snot{transform-origin:0% 50%!important}
+#c[data-s="sleeping"] .snot{animation:snot 4.6s ease-in-out infinite}
+@keyframes snot{0%,100%{transform:scale(.3)}50%{transform:scale(1.25)}}
+#c[data-s="asking"] .bang{animation:shake .35s ease-in-out infinite alternate}
+@keyframes shake{from{transform:rotate(-10deg)}to{transform:rotate(10deg) scale(1.1)}}
+.mini{transition:opacity .25s}
+#c[data-s="delegating"] .mini-l{animation:bob .6s ease-in-out infinite alternate}
+#c[data-s="delegating"] .mini-r{animation:bob .6s ease-in-out .3s infinite alternate}
+@keyframes bob{to{transform:translateY(-8px)}}
+.confetti rect{opacity:0}
+#c[data-s="done"] .confetti rect{animation:burst 1.4s cubic-bezier(.1,.7,.3,1) forwards}
+@keyframes burst{0%{opacity:1;transform:translate(0,0) scale(.2)}70%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--r)) scale(1)}}
+.lids{transition:opacity .3s}
+/* talking: the mouth flaps while the voice plays */
+#c.talking .mouth{animation:yap .17s ease-in-out infinite alternate}
+@keyframes yap{from{transform:scaleY(.3)}to{transform:scaleY(1.15)}}
+#c.talking .all{animation:chat 1.2s ease-in-out infinite}
+@keyframes chat{25%{transform:rotate(-2deg)}75%{transform:rotate(2deg)}}
+
+/* costumes (per project) */
+.cos,.mask{opacity:0;transition:opacity .3s}
+#c[data-cbase="vino"] .cos-beret,#c[data-costume="vino"] .cos-glass,#c[data-costume="vinoblog"] .cos-blog,
+#c[data-costume="vinorecursos"] .cos-recursos,#c[data-costume="vinotrivia"] .cos-trivia,#c[data-costume="vinoreels"] .cos-reels{opacity:1}
+.cos-feather{display:none}
+#c[data-costume="vinoblog"] .cos-feather{display:inline}
+#c .rec{animation:recblink 1s steps(2) infinite}
+@keyframes recblink{50%{opacity:0}}
+#c[data-s="running"] .cos-hat{opacity:0}
+#c.masked .mask{opacity:1}
+
+/* deploys: rocket on the pad, then lift-off and fireworks */
+#c[data-s="deploying"] .launch,#c[data-s="shipped"] .launch{opacity:1}
+#c[data-s="deploying"] .launch-fly{animation:rumble .08s linear infinite alternate}
+@keyframes rumble{from{transform:translate(-1px,0)}to{transform:translate(1px,-1px)}}
+#c .flame{transform-origin:50% 0%}
+#c[data-s="deploying"] .flame{animation:flare .1s infinite alternate}
+@keyframes flare{from{transform:scaleY(.6)}to{transform:scaleY(1.25)}}
+#c[data-s="shipped"] .launch-fly{animation:liftoff 1.3s cubic-bezier(.5,0,.9,.4) forwards}
+@keyframes liftoff{to{transform:translateY(-240px)}}
+#c[data-s="shipped"] .flame{transform:scaleY(2.2)}
+#c[data-s="deploying"] .all{animation:rumble .1s linear infinite alternate}
+#c[data-s="shipped"] .all{animation:hop .55s cubic-bezier(.3,0,.5,1) 5}
+#c[data-s="shipped"] .arm-l{transform:rotate(130deg)}
+#c[data-s="shipped"] .arm-r{transform:rotate(-130deg)}
+#c[data-s="shipped"] .fireworks{opacity:1}
+.fireworks circle{opacity:0}
+#c[data-s="shipped"] .fireworks circle{animation:fw 1.3s cubic-bezier(.15,.7,.3,1) infinite;animation-delay:var(--d)}
+@keyframes fw{0%{opacity:1;transform:translate(0,0) scale(.4)}70%{opacity:1}100%{opacity:0;transform:translate(var(--dx),calc(var(--dy) + 12px)) scale(1)}}
+
+/* Bajovelo: deploys are celebrated uncorking cava */
+#c[data-cbase="vino"] .launch,#c[data-cbase="vino"] .fireworks{display:none}
+#c[data-cbase="vino"][data-s="deploying"] .cava,#c[data-cbase="vino"][data-s="shipped"] .cava{opacity:1}
+#c[data-s="deploying"] .cava-bottle{animation:shakeit .12s ease-in-out infinite alternate;transform-box:view-box;transform-origin:176px 179px}
+@keyframes shakeit{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}
+#c[data-s="deploying"] .cork{animation:wiggle .2s ease-in-out infinite alternate}
+@keyframes wiggle{to{transform:translateY(-2px) rotate(6deg)}}
+.foam circle{opacity:0}
+#c[data-s="shipped"] .cork{animation:popcork 1.2s cubic-bezier(.2,.8,.4,1) forwards}
+@keyframes popcork{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(-40px,-190px) rotate(-900deg);opacity:0}}
+#c[data-s="shipped"] .foam circle{animation:spray 1.1s ease-out infinite}
+#c[data-s="shipped"] .foam circle:nth-child(2n){animation-delay:.25s}
+#c[data-s="shipped"] .foam circle:nth-child(3n){animation-delay:.5s}
+@keyframes spray{0%{opacity:1;transform:translate(0,0) scale(.4)}80%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1.2)}}
+
+/* break: a long stretch */
+#c[data-s="stretch"] .arm-l{transform:rotate(118deg);transition:transform .8s}
+#c[data-s="stretch"] .arm-r{transform:rotate(-118deg);transition:transform .8s}
+#c[data-s="stretch"] .bodyg{animation:stretchy 2.2s ease-in-out infinite}
+@keyframes stretchy{50%{transform:scale(.95,1.09)}}
+
+/* travelling across the screen to find you */
+#c.travel .all{animation:bounce .2s ease-in-out infinite}
+#c.travel .bodyg{animation:none;transform:rotate(var(--lean,0deg))}
+
+@media (prefers-reduced-motion: reduce){ #c *,#c{animation-duration:0s!important;animation-iteration-count:1!important} }
+</style>
+
+<main class="page">
+  <header class="intro" data-demo>
+    <h1>Carita</h1>
+    <p>Tu Claude Code con cara. Flota encima de todo en el Mac y pone una expresión distinta según lo que esté haciendo en la terminal.</p>
+  </header>
+
+  <section class="stage" id="stage" aria-label="Personaje animado">
+    <div class="bubble" id="bubble" role="status" aria-live="polite"></div>
+    <svg id="c" viewBox="0 0 200 200" data-s="idle" data-eyes="open" data-mouth="smile" data-brows="none" aria-hidden="true">
+      <ellipse class="shadow" cx="100" cy="190" rx="48" ry="6" fill="#2B1E1A" opacity=".16"/>
+
+      <defs><clipPath id="bodyclip"><ellipse cx="100" cy="122" rx="63" ry="57"/></clipPath></defs>
+
+      <!-- launch pad rocket (deploys) -->
+      <g class="prop launch">
+        <g class="launch-fly">
+          <ellipse class="flame" cx="176" cy="160" rx="5" ry="9" fill="#FFB03B" stroke="#FF5A4E" stroke-width="1.5"/>
+          <path d="M176 104 Q186 117 184 150 L168 150 Q166 117 176 104 Z" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M170.5 113 Q176 105 181.5 113 Z" fill="#FF5A4E"/>
+          <circle cx="176" cy="126" r="4.5" fill="#6FA8FF" stroke="var(--ink)" stroke-width="1.6"/>
+          <path d="M168 138 L160 154 L168 150 Z M184 138 L192 154 L184 150 Z" fill="#FF5A4E" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>
+        </g>
+      </g>
+
+      <!-- Bajovelo deploys: a bottle of cava instead of the rocket -->
+      <g class="prop cava">
+        <g class="cava-bottle">
+          <path d="M172 112 L180 112 L180 124 Q188 130 188 142 L188 174 Q188 179 183 179 L169 179 Q164 179 164 174 L164 142 Q164 130 172 124 Z" fill="#1F4D3A" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"/>
+          <path d="M171 104 L181 104 L181 120 L171 120 Z" fill="#E9C46A" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+          <rect x="167" y="147" width="18" height="16" rx="2" fill="#FFF6E8" stroke="var(--ink)" stroke-width="1.6"/>
+          <path d="M170 152 H182 M172 157 H180" stroke="#7E1F33" stroke-width="2"/>
+          <path d="M169 132 Q168 145 169 168" stroke="#FFFFFF" stroke-width="2" opacity=".35" fill="none" stroke-linecap="round"/>
+          <g class="cork">
+            <path d="M171.5 104 L171.5 97 Q171.5 92 176 92 Q180.5 92 180.5 97 L180.5 104 Z" fill="#D9B98C" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+          </g>
+          <g class="foam">
+            <circle cx="176" cy="104" r="4" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.2" style="--dx:-26px;--dy:-34px"/>
+            <circle cx="176" cy="104" r="3" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.2" style="--dx:-12px;--dy:-48px"/>
+            <circle cx="176" cy="104" r="4.5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.2" style="--dx:4px;--dy:-52px"/>
+            <circle cx="176" cy="104" r="3" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.2" style="--dx:18px;--dy:-40px"/>
+            <circle cx="176" cy="104" r="3.5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.2" style="--dx:26px;--dy:-22px"/>
+            <circle cx="176" cy="104" r="2.5" fill="#F6E7B0" style="--dx:-20px;--dy:-60px"/>
+            <circle cx="176" cy="104" r="2.5" fill="#F6E7B0" style="--dx:12px;--dy:-66px"/>
+            <circle cx="176" cy="104" r="2" fill="#F6E7B0" style="--dx:-4px;--dy:-74px"/>
+          </g>
+        </g>
+      </g>
+
+      <!-- subagents -->
+      <g class="prop mini mini-l">
+        <ellipse cx="24" cy="168" rx="17" ry="15" fill="var(--clay-light)"/>
+        <circle cx="18" cy="166" r="2.6" fill="var(--ink)"/><circle cx="29" cy="166" r="2.6" fill="var(--ink)"/>
+        <path d="M19 173 Q23.5 177 28 173" stroke="var(--ink)" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </g>
+      <g class="prop mini mini-r">
+        <ellipse cx="176" cy="168" rx="17" ry="15" fill="var(--clay-light)"/>
+        <circle cx="171" cy="166" r="2.6" fill="var(--ink)"/><circle cx="182" cy="166" r="2.6" fill="var(--ink)"/>
+        <path d="M172 173 Q176.5 177 181 173" stroke="var(--ink)" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </g>
+
+      <g class="all">
+        <g class="bodyg">
+          <!-- feet & arms behind the body -->
+          <ellipse cx="78" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
+          <ellipse cx="122" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
+          <g class="arm-l"><ellipse cx="38" cy="138" rx="10" ry="16" fill="var(--clay-dark)" transform="rotate(20 38 138)"/></g>
+          <g class="arm-r"><ellipse cx="162" cy="138" rx="10" ry="16" fill="var(--clay-dark)" transform="rotate(-20 162 138)"/></g>
+
+          <!-- sprout -->
+          <g class="sprout">
+            <path d="M100 70 Q97 54 104 42" stroke="var(--leaf)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <ellipse cx="112" cy="39" rx="10" ry="5.5" fill="var(--leaf)" transform="rotate(-28 112 39)"/>
+            <ellipse cx="96" cy="46" rx="7" ry="4" fill="var(--leaf)" transform="rotate(30 96 46)"/>
+          </g>
+
+          <!-- body -->
+          <ellipse cx="100" cy="122" rx="63" ry="57" fill="var(--clay)"/>
+          <ellipse cx="82" cy="92" rx="22" ry="12" fill="#FFFFFF" opacity=".18" transform="rotate(-20 82 92)"/>
+          <ellipse cx="100" cy="150" rx="34" ry="20" fill="var(--clay-light)" opacity=".45"/>
+
+          <!-- hard hat (running) -->
+          <g class="prop hat">
+            <path d="M64 80 Q66 50 100 48 Q134 50 136 80 Z" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M100 49 L100 78" stroke="var(--ink)" stroke-width="2" opacity=".35"/>
+            <rect x="56" y="76" width="88" height="8" rx="4" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.5"/>
+          </g>
+
+          <!-- costumes: Bajovelo beret always, plus a prop per subproject -->
+          <g class="cos cos-beret cos-hat">
+            <path class="cos-feather" d="M99 63 Q110 45 128 36 Q121 53 99 63 Z" fill="#FFF6E8" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
+            <path class="cos-feather" d="M102 60 Q114 47 125 39" stroke="var(--ink)" stroke-width="1.2" fill="none" opacity=".6"/>
+            <ellipse cx="86" cy="68" rx="31" ry="11" fill="#7E1F33" stroke="var(--ink)" stroke-width="2.5" transform="rotate(-14 86 68)"/>
+            <circle cx="80" cy="57" r="3.2" fill="#7E1F33" stroke="var(--ink)" stroke-width="2"/>
+          </g>
+          <g class="cos cos-glass">
+            <path d="M12 118 Q12 140 23 142 Q34 140 34 118 Z" fill="#FFFFFF" fill-opacity=".6" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M13.5 127 Q14.5 139.5 23 140.5 Q31.5 139.5 32.5 127 Z" fill="#8E1F3A"/>
+            <line x1="23" y1="142" x2="23" y2="156" stroke="var(--ink)" stroke-width="2.5"/>
+            <ellipse cx="23" cy="157" rx="8" ry="2.6" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/>
+          </g>
+          <g class="cos cos-blog" transform="rotate(-8 22 136)">
+            <rect x="8" y="120" width="28" height="34" rx="2.5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2"/>
+            <rect x="8" y="120" width="5" height="34" fill="#7E1F33" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M17 129 H31 M17 135 H31 M17 141 H28 M17 147 H30" stroke="var(--ink)" stroke-width="1.6" opacity=".55"/>
+          </g>
+          <g class="cos cos-recursos" transform="rotate(-6 22 136)">
+            <rect x="7" y="117" width="30" height="38" rx="3" fill="#7E1F33" stroke="var(--ink)" stroke-width="2"/>
+            <rect x="7" y="117" width="5" height="38" fill="#5E1626" stroke="var(--ink)" stroke-width="2"/>
+            <path d="M16 125 H33 M16 149 H33" stroke="#F5C242" stroke-width="2"/>
+            <circle cx="22.5" cy="134" r="2.6" fill="#B48CFF"/><circle cx="27.5" cy="134" r="2.6" fill="#B48CFF"/>
+            <circle cx="25" cy="138.5" r="2.6" fill="#B48CFF"/><circle cx="25" cy="143" r="2.4" fill="#B48CFF"/>
+            <path d="M25 131 Q26 128 29 127" stroke="var(--leaf)" stroke-width="1.6" fill="none"/>
+          </g>
+          <g class="cos cos-trivia">
+            <line x1="22" y1="128" x2="22" y2="160" stroke="#8B5E3C" stroke-width="4" stroke-linecap="round"/>
+            <circle cx="22" cy="116" r="15" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.2"/>
+            <text x="22" y="123.5" text-anchor="middle" font-family="ui-rounded, Nunito, system-ui, sans-serif" font-weight="900" font-size="21" fill="var(--ink)">?</text>
+          </g>
+          <g class="cos cos-reels" transform="rotate(-10 21 135)">
+            <rect x="9" y="115" width="24" height="40" rx="5" fill="var(--ink)"/>
+            <rect x="11.5" y="120" width="19" height="29" rx="2" fill="#9AD0F5"/>
+            <circle class="rec" cx="15.5" cy="124" r="2.4" fill="#FF3B30"/>
+          </g>
+
+          <!-- cheeks -->
+          <ellipse class="blush" cx="62" cy="132" rx="10" ry="5.5" fill="var(--cheek)"/>
+          <ellipse class="blush" cx="138" cy="132" rx="10" ry="5.5" fill="var(--cheek)"/>
+
+          <!-- eyes -->
+          <g class="eye-l"><g class="big">
+            <g class="eo"><g class="blinker">
+              <ellipse cx="78" cy="112" rx="13" ry="15.5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+              <g class="pupil"><circle cx="78" cy="113" r="7.5" fill="var(--ink)"/><circle cx="80.6" cy="110" r="2.6" fill="#FFFFFF"/></g>
+            </g></g>
+            <path class="eye-alt eh" d="M66 116 Q78 100 90 116" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+            <path class="eye-alt ec" d="M66 113 Q78 122 90 113" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path class="eye-alt ex" d="M68 103 L87 112 L68 121" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g></g>
+          <g class="eye-r"><g class="big">
+            <g class="eo"><g class="blinker">
+              <ellipse cx="122" cy="112" rx="13" ry="15.5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+              <g class="pupil"><circle cx="122" cy="113" r="7.5" fill="var(--ink)"/><circle cx="124.6" cy="110" r="2.6" fill="#FFFFFF"/></g>
+            </g></g>
+            <path class="eye-alt eh" d="M110 116 Q122 100 134 116" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+            <path class="eye-alt ec" d="M110 113 Q122 122 134 113" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path class="eye-alt ex" d="M132 103 L113 112 L132 121" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g></g>
+
+          <!-- sleepy lids -->
+          <g class="prop lids">
+            <path d="M63.5 113 A14.5 17 0 0 1 92.5 113 Z" fill="var(--clay)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M107.5 113 A14.5 17 0 0 1 136.5 113 Z" fill="var(--clay)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+          </g>
+
+          <!-- sleep mask (ignored break) -->
+          <g class="mask" clip-path="url(#bodyclip)">
+            <path d="M30 97 Q100 88 170 97 L170 128 Q100 119 30 128 Z" fill="#3B3F6B" stroke="var(--ink)" stroke-width="2.5"/>
+            <path d="M67 112 Q78 119 89 112 M111 112 Q122 119 133 112" stroke="#FFFFFF" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M64 106 l-4 -3 M92 106 l4 -3 M108 106 l-4 -3 M136 106 l4 -3" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" opacity=".7"/>
+          </g>
+
+          <!-- brows -->
+          <path class="brow brow-l" d="M67 91 Q78 86 89 90" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+          <path class="brow brow-r" d="M111 90 Q122 86 133 91" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+          <!-- mouths -->
+          <g class="mouth">
+            <path class="mo m-smile" d="M88 137 Q100 148 112 137" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <g class="mo m-big">
+              <path d="M83 134 Q100 162 117 134 Z" fill="var(--ink)" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
+              <ellipse cx="100" cy="150" rx="8" ry="5" fill="var(--cheek)"/>
+            </g>
+            <ellipse class="mo m-o" cx="103" cy="141" rx="4.5" ry="5.5" fill="var(--ink)"/>
+            <path class="mo m-flat" d="M91 140 L109 140" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+            <g class="mo m-tongue">
+              <ellipse cx="107" cy="144" rx="5" ry="6.5" fill="var(--cheek)" stroke="var(--ink)" stroke-width="2"/>
+              <path d="M89 139 Q100 145 113 138" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
+            </g>
+            <g class="mo m-grit">
+              <rect x="86" y="133" width="28" height="12" rx="4" fill="#FFFFFF" stroke="var(--ink)" stroke-width="3"/>
+              <path d="M86 139 H114 M95 133 V145 M105 133 V145" stroke="var(--ink)" stroke-width="2"/>
+            </g>
+            <ellipse class="mo m-wow" cx="100" cy="142" rx="7.5" ry="9.5" fill="var(--ink)"/>
+            <ellipse class="mo m-yawn" cx="100" cy="142" rx="9" ry="11" fill="var(--ink)"/>
+            <path class="mo m-wobble" d="M86 141 q4 -6 8 0 t7 0 t7 0 t7 0" stroke="var(--ink)" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          </g>
+          <circle class="prop snot" cx="113" cy="134" r="6" fill="#BFE6FF" stroke="var(--ink)" stroke-width="1.5" opacity=".9"/>
+
+          <!-- glasses (reading) -->
+          <g class="prop glasses" fill="none" stroke="var(--ink)" stroke-width="3">
+            <circle cx="78" cy="112" r="18" fill="#FFFFFF" fill-opacity=".12"/>
+            <circle cx="122" cy="112" r="18" fill="#FFFFFF" fill-opacity=".12"/>
+            <path d="M96 109 Q100 104 104 109"/>
+            <path d="M60 108 L42 102"/><path d="M140 108 L158 102"/>
+          </g>
+
+          <!-- magnifier (browsing) -->
+          <g class="prop loupe">
+            <line x1="139" y1="128" x2="160" y2="152" stroke="#5B3B2E" stroke-width="8" stroke-linecap="round"/>
+            <circle cx="123" cy="111" r="22" fill="#CFEAFF" fill-opacity=".35" stroke="#5B3B2E" stroke-width="5"/>
+          </g>
+
+          <!-- pencil (writing) -->
+          <g class="prop pencil">
+            <g transform="rotate(28 158 150)">
+              <rect x="153" y="118" width="11" height="34" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.2"/>
+              <rect x="153" y="112" width="11" height="7" rx="2" fill="var(--cheek)" stroke="var(--ink)" stroke-width="2.2"/>
+              <path d="M153 152 L164 152 L158.5 164 Z" fill="#F3D5B5" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"/>
+              <path d="M156.6 160 L160.4 160 L158.5 164 Z" fill="var(--ink)"/>
+            </g>
+          </g>
+
+          <!-- sweat (running) -->
+          <path class="prop sweat" d="M156 76 Q149 88 156 92 Q163 88 156 76 Z" fill="#8FD3FF" stroke="var(--ink)" stroke-width="1.8"/>
+        </g>
+      </g>
+
+      <!-- floating extras -->
+      <g class="prop dots" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.2">
+        <circle cx="150" cy="68" r="3.5"/><circle cx="161" cy="55" r="5.5"/><circle cx="176" cy="38" r="9"/>
+      </g>
+      <g class="prop zzz" font-family="ui-rounded, Nunito, system-ui, sans-serif" font-weight="900" fill="var(--ink)" stroke="#FFFFFF" stroke-width="3" paint-order="stroke">
+        <text x="146" y="68" font-size="15">z</text><text x="158" y="50" font-size="20">z</text><text x="172" y="30" font-size="26">Z</text>
+      </g>
+      <g class="prop bang" font-family="ui-rounded, Nunito, system-ui, sans-serif" font-weight="900" fill="#FF5A4E" stroke="#FFFFFF" stroke-width="4" paint-order="stroke">
+        <text x="150" y="62" font-size="40">!</text>
+      </g>
+      <g class="prop confetti">
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF5A4E" style="--dx:-70px;--dy:-60px;--r:220deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#F5C242" style="--dx:-40px;--dy:-85px;--r:-160deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#5DB36A" style="--dx:-8px;--dy:-95px;--r:300deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#6FA8FF" style="--dx:30px;--dy:-88px;--r:-260deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF8FA3" style="--dx:62px;--dy:-66px;--r:180deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#F5C242" style="--dx:88px;--dy:-30px;--r:-200deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#6FA8FF" style="--dx:-90px;--dy:-24px;--r:260deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#5DB36A" style="--dx:-58px;--dy:-100px;--r:-300deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF5A4E" style="--dx:52px;--dy:-104px;--r:240deg"/>
+        <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF8FA3" style="--dx:-20px;--dy:-60px;--r:-120deg"/>
+      </g>
+      <!-- fireworks (filled by script) -->
+      <g class="prop fireworks" id="fireworks"></g>
+    </svg>
+  </section>
+
+  <div class="bar" data-demo>
+    <small>Toca un estado, o toca al bicho para hacerle cosquillas.</small>
+    <button class="tour" id="tour" type="button" aria-pressed="true">Pausar demo</button>
+  </div>
+  <div class="costumes" id="costumes" data-demo><small>Disfraz</small></div>
+  <div class="controls" id="controls" data-demo></div>
+</main>
+
+<script>
+(() => {
+  // ✏️ Tu nombre, para cuando te llama
+  const NOMBRE = "Isra";
+
+  const host = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.carita;
+  const APP = !!host;
+  if (APP) document.documentElement.classList.add("app");
+  // keep in sync with VB_X / VB_Y / baseSize in main.swift
+  if (APP) document.getElementById("c").setAttribute("viewBox", "-20 -24 240 224");
+
+  const svg = document.getElementById("c");
+  const bubble = document.getElementById("bubble");
+
+  const FRASES = {
+    hello: ["¡Buenas! Ya estoy aquí", "¿Qué rompemos hoy?", "Café en mano. ¿Empezamos?"],
+    thinking: ["Hmm… déjame pensar", "Dame un segundito", "Estoy en ello, tío", "Cargando neuronas…", "Pensando fuerte"],
+    reading: ["A ver qué tenemos aquí…", "Leyendo con mis gafas de listo", "Interesante… muy interesante", "Esto lo escribió alguien con prisa"],
+    writing: ["Tecleando a lo loco", "Esto va a quedar precioso", "Shhh, estoy creando", "Código del bueno, ya verás"],
+    running: ["¡Ejecutando! Agárrate", "Que no explote, que no explote…", "Terminal a tope", "Compilando… o rezando"],
+    browsing: ["Buscando en internet…", "Modo Sherlock activado", "Déjame que lo mire"],
+    delegating: ["Llamo a mis colegas", "Trabajo en equipo, tío", "Subcontratando…"],
+    asking: ["¡{n}! Te necesito un momento", "Psst… {n}, ¿me echas un ojo?", "Esto lo tienes que decidir tú", "Toc toc, ¿hay alguien?"],
+    done: ["¡Listo! Choca esos cinco", "¡Hecho! Soy un crack", "Terminado. ¿Qué más?", "¡Tachán!"],
+    sleepy: ["*bostezo*", "¿Seguimos o qué?", "Me estoy quedando frito…"],
+    poke: ["¡Eh! Que tengo cosquillas", "¡Ay! ¿Qué pasa?", "Estoy trabajando, ¿eh?", "¡Jajaja para!"],
+    bye: ["¡Hasta luego, {n}!", "Me voy a echar la siesta"],
+    deploying: ["¡Desplegando! Cruzad los dedos", "3… 2… 1…", "Que no falle, que no falle…"],
+    shipped: ["¡En producción, tío!", "¡Despegue perfecto!", "¡Ya está en internet!"],
+    deployingVino: ["Agitando el cava…", "Preparando el descorche…", "Que no se nos caliente el cava…"],
+    shippedVino: ["¡Pum! ¡Descorchamos!", "¡Salud! Ya está en producción", "¡Chin chin, tío!"],
+    stretch: ["Llevamos {t} sin parar. ¿Te estiras?", "{t} dándole… ¿un descanso, {n}?"],
+    mask: ["Pues yo me pongo el antifaz. Tú verás.", "Yo descanso aunque tú no, ¿eh?"],
+    rested: ["¡Qué bien sienta un descanso!", "Mucho mejor, ¿eh?"],
+    idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
+  };
+
+  const S = {
+    idle:      {eyes:"open",    mouth:"smile",  brows:"none"},
+    hello:     {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, after:["idle", 4200]},
+    thinking:  {eyes:"open",    mouth:"o",      brows:"think", talk:1, work:1},
+    reading:   {eyes:"open",    mouth:"flat",   brows:"none",  talk:1, work:1},
+    writing:   {eyes:"open",    mouth:"tongue", brows:"focus", talk:1, work:1},
+    running:   {eyes:"open",    mouth:"grit",   brows:"angry", talk:1, work:1},
+    browsing:  {eyes:"open",    mouth:"wow",    brows:"up",    talk:1, work:1},
+    delegating:{eyes:"open",    mouth:"smile",  brows:"up",    talk:1, work:1},
+    asking:    {eyes:"open",    mouth:"wow",    brows:"up",    talk:1, speak:1, sticky:1},
+    done:      {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, speak:1, after:["idle", 8000]},
+    sleepy:    {eyes:"open",    mouth:"yawn",   brows:"none",  talk:1},
+    sleeping:  {eyes:"closed",  mouth:"o",      brows:"none"},
+    poke:      {eyes:"squeeze", mouth:"wobble", brows:"none",  talk:1},
+    deploying: {eyes:"open",    mouth:"grit",   brows:"up",    talk:1},
+    shipped:   {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, speak:1, lock:5500, after:["idle", 9000]},
+    stretch:   {eyes:"closed",  mouth:"yawn",   brows:"none",  talk:1, speak:1, lock:6000, after:["idle", 7000]},
+    bye:       {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, after:["sleepy", 5000]}
+  };
+  // where the pupils go when not following the mouse
+  const FIXED = {deploying:[0,-3], thinking:[4,-5], writing:[1,4], running:[0,1], sleepy:[0,3]};
+
+  let cur = "idle", mx = 0, my = 0;
+  let lastActivity = Date.now(), lastBubble = 0, replyUntil = 0, isTalking = false;
+  let afterT, bubbleT, pendingT, pokeT, queuedT, lockUntil = 0;
+  // break reminder: after this much continuous work, a stretch; if ignored, the sleep mask
+  const BREAK_AFTER = 90 * 60e3, MASK_AFTER = 10 * 60e3, BREAK_GAP = 5 * 60e3;
+  let workStart = Date.now(), breakAskedAt = 0, masked = false;
+
+  const pick = (k, t) => {
+    const a = FRASES[k] || [];
+    return (a[Math.floor(Math.random() * a.length)] || "").replaceAll("{n}", NOMBRE).replaceAll("{t}", t || "");
+  };
+  function duration(ms) {
+    const min = Math.round(ms / 60e3), h = Math.floor(min / 60), m = min % 60;
+    if (!h) return `${m} minutos`;
+    return `${h} hora${h > 1 ? "s" : ""}${m ? ` y ${m} minutos` : ""}`;
+  }
+  function speakLine(text) { if (APP && text) host.postMessage({type: "say", text}); }
+
+  // In the Mac app the bubble is a separate floating window that hugs the head
+  // (and flips below when there's no room above); in the browser it's drawn here.
+  function showBubble(text) {
+    if (APP) { host.postMessage({type: "bubble", text}); return; }
+    bubble.textContent = text;
+    bubble.classList.remove("show"); void bubble.offsetWidth; bubble.classList.add("show");
+  }
+  function hideBubble() {
+    if (APP) { host.postMessage({type: "bubble", text: ""}); return; }
+    bubble.classList.remove("show");
+  }
+
+  function say(text, sticky) {
+    if (!text) return;
+    showBubble(text);
+    lastBubble = Date.now();
+    clearTimeout(bubbleT);
+    if (!sticky) bubbleT = setTimeout(hideBubble, 4200);
+  }
+
+  function apply(s, quiet, text) {
+    const cfg = S[s]; if (!cfg) return;
+    clearTimeout(afterT); clearTimeout(pendingT);
+    if (cfg.lock) lockUntil = Date.now() + cfg.lock;
+    const changed = s !== cur;
+    cur = s;
+    svg.dataset.s = s; svg.dataset.eyes = cfg.eyes; svg.dataset.mouth = cfg.mouth; svg.dataset.brows = cfg.brows;
+    if (s === "done") { // restart one-shot animations
+      svg.querySelectorAll(".confetti rect").forEach(r => { r.style.animation = "none"; void r.getBBox(); r.style.animation = ""; });
+    }
+    updateLook();
+    if (changed && bubble.dataset.sticky && !cfg.sticky) {
+      hideBubble(); delete bubble.dataset.sticky;
+    }
+    const gapOk = !APP || !cfg.work || Date.now() - lastBubble > 6000;
+    const replying = Date.now() < replyUntil && s !== "asking";
+    if (!quiet && cfg.talk && changed && gapOk && !replying) {
+      const vinoKey = svg.dataset.cbase === "vino" && FRASES[s + "Vino"] ? s + "Vino" : s;
+      const txt = text || pick(vinoKey, duration(Date.now() - workStart));
+      if (s === "shipped" && vinoKey !== s && APP) host.postMessage({type: "sound", text: "Pop"});
+      say(txt, cfg.sticky);
+      if (cfg.sticky) bubble.dataset.sticky = "1";
+      if (cfg.speak && APP) host.postMessage({type: "say", text: txt});
+    }
+    if (cfg.after) afterT = setTimeout(() => apply(cfg.after[0], true), cfg.after[1]);
+    markChip();
+  }
+
+  // public API (the Mac app calls these)
+  function set(s) {
+    if (!S[s] || s === "poke") return;
+    const now = Date.now(), wasAway = now - lastActivity >= BREAK_GAP;
+    if (wasAway) { // a real break: reset the work timer
+      if (breakAskedAt || masked) setTimeout(() => say(pick("rested")), 900);
+      workStart = now; breakAskedAt = 0; setMasked(false);
+    }
+    lastActivity = now;
+    clearTimeout(pokeT);
+    // a big moment (fireworks, stretch) plays out before the next state
+    if (now < lockUntil && s !== "asking") {
+      clearTimeout(queuedT);
+      queuedT = setTimeout(() => apply(s), lockUntil - now);
+      return;
+    }
+    // avoid flicker: "thinking" between tools waits a moment in case another tool starts
+    if (s === "thinking" && S[cur] && S[cur].work && cur !== "thinking") {
+      clearTimeout(pendingT);
+      pendingT = setTimeout(() => apply("thinking"), 700);
+      return;
+    }
+    if (s === cur && !["done", "asking", "hello", "bye"].includes(s)) return;
+    apply(s);
+  }
+  function poke() {
+    const back = cur === "poke" ? (svg.dataset.back || "idle") : cur;
+    svg.dataset.back = back;
+    apply("poke");
+    clearTimeout(pokeT);
+    pokeT = setTimeout(() => apply(back === "done" || back === "hello" ? "idle" : back, true), 1500);
+  }
+  function look(x, y) { mx = Math.max(-1, Math.min(1, x)); my = Math.max(-1, Math.min(1, y)); updateLook(); }
+  function updateLook() {
+    const f = FIXED[cur];
+    const lx = f ? f[0] : mx * 4.5, ly = f ? f[1] : my * 4.5;
+    svg.style.setProperty("--lx", lx.toFixed(2) + "px");
+    svg.style.setProperty("--ly", ly.toFixed(2) + "px");
+  }
+  // the summary of Claude's answer: shown in the bubble while the app reads it aloud
+  function reply(text) {
+    if (!text) return;
+    const ms = Math.max(4500, text.length * 80);
+    replyUntil = Date.now() + ms + 1500;
+    delete bubble.dataset.sticky;
+    say(text, true);
+    clearTimeout(bubbleT);
+    bubbleT = setTimeout(() => { if (!isTalking) hideBubble(); }, ms);
+  }
+  function talking(on) {
+    isTalking = !!on;
+    svg.classList.toggle("talking", isTalking);
+    if (isTalking) {
+      svg.dataset.mouth = "wow";
+      clearTimeout(bubbleT);
+      replyUntil = Math.max(replyUntil, Date.now() + 60000);
+    } else {
+      if (S[cur]) svg.dataset.mouth = S[cur].mouth;
+      replyUntil = Date.now() + 1200;
+      clearTimeout(bubbleT);
+      bubbleT = setTimeout(() => { if (!bubble.dataset.sticky) hideBubble(); }, 1200);
+    }
+  }
+  function setMasked(on) { masked = !!on; svg.classList.toggle("masked", masked); }
+  const COSTUMES = ["vino", "vinoblog", "vinorecursos", "vinotrivia", "vinoreels"];
+  function costume(name) {
+    const c = COSTUMES.includes(name) ? name : "none";
+    svg.dataset.costume = c;
+    svg.dataset.cbase = c.startsWith("vino") ? "vino" : "none";
+  }
+  function travel(dir) {
+    svg.classList.toggle("travel", !!dir);
+    svg.style.setProperty("--lean", (dir * 9) + "deg");
+  }
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t)};
+
+  // fireworks particles
+  const fw = document.getElementById("fireworks");
+  [[42, 30, "#FF5A4E", 0], [160, 36, "#F5C242", .4], [100, 4, "#6FA8FF", .8], [68, 62, "#5DB36A", 1.05], [136, 10, "#FF8FA3", .25]]
+    .forEach(([x, y, color, d]) => {
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * Math.PI * 2, c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", "2.6"); c.setAttribute("fill", color);
+        c.style.setProperty("--dx", (Math.cos(a) * 30).toFixed(1) + "px");
+        c.style.setProperty("--dy", (Math.sin(a) * 30).toFixed(1) + "px");
+        c.style.setProperty("--d", d + "s");
+        fw.appendChild(c);
+      }
+    });
+
+  // blinking
+  (function blink() {
+    setTimeout(() => {
+      svg.classList.add("blink");
+      setTimeout(() => svg.classList.remove("blink"), 130);
+      blink();
+    }, 2200 + Math.random() * 4200);
+  })();
+
+  // boredom, chatter and stale states (app only)
+  if (APP) {
+    setInterval(() => {
+      const idleFor = Date.now() - lastActivity;
+      if (S[cur] && S[cur].work && idleFor > 180000) apply("idle", true);
+      else if (cur === "asking" && idleFor > 600000) apply("idle", true);
+      else if (cur === "idle" && idleFor > 180000) apply("sleepy");
+      else if (cur === "sleepy" && idleFor > 720000) apply("sleeping", true);
+      else if (cur === "idle" && Math.random() < 0.06) say(pick("idle"));
+      // break reminder
+      const now = Date.now(), active = now - lastActivity < 120e3;
+      if (active && !breakAskedAt && now - workStart >= BREAK_AFTER && cur !== "asking") {
+        breakAskedAt = now;
+        apply("stretch", false, pick("stretch", duration(now - workStart)));
+      } else if (active && breakAskedAt && !masked && now - breakAskedAt >= MASK_AFTER) {
+        setMasked(true);
+        const line = pick("mask"); say(line); speakLine(line);
+      }
+    }, 10000);
+    apply("hello");
+    return;
+  }
+
+  // ---------- browser demo ----------
+  const CHIPS = [
+    ["hello","Hola","SessionStart"],
+    ["thinking","Pensando","UserPromptSubmit"],
+    ["reading","Leyendo","Read · Grep · Glob"],
+    ["writing","Escribiendo","Edit · Write"],
+    ["running","Ejecutando","Bash"],
+    ["deploying","Desplegando","git push · deploy"],
+    ["shipped","¡En producción!","deploy que sale bien"],
+    ["browsing","Investigando","WebSearch · WebFetch"],
+    ["delegating","Delegando","Task (subagentes)"],
+    ["asking","Te necesita","Notification"],
+    ["done","¡Hecho!","Stop"],
+    ["sleepy","Aburrido","3 min sin nada"],
+    ["sleeping","Dormido","12 min sin nada"],
+    ["reply","Contestando","resumen en voz alta"],
+    ["travel","Te busca","te necesita y estás en otra app"],
+    ["stretch","Descanso","90 min sin parar"],
+    ["mask","Antifaz","si ignoras el descanso"],
+    ["poke","Cosquillas","clic encima"]
+  ];
+  const DEMO_REPLY = "Arreglado el bug del login y añadidos 3 tests. Falta revisar el deploy.";
+  function demoReply() {
+    apply("done"); clearTimeout(afterT);
+    reply(DEMO_REPLY); talking(true);
+    setTimeout(() => talking(false), 2800);
+    markChip("reply");
+  }
+  const controls = document.getElementById("controls");
+  const tourBtn = document.getElementById("tour");
+  CHIPS.forEach(([s, label, hook]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.s = s; b.id = "chip-" + s;
+    b.setAttribute("aria-pressed", "false");
+    b.innerHTML = `<b>${label}</b><span>${hook}</span>`;
+    b.addEventListener("click", () => { stopTour(); run(s); });
+    controls.appendChild(b);
+  });
+  function run(s) {
+    if (s !== "mask") setMasked(false);
+    if (s === "poke") poke();
+    else if (s === "reply") demoReply();
+    else if (s === "stretch") { apply("stretch", false, pick("stretch", duration(BREAK_AFTER))); clearTimeout(afterT); }
+    else if (s === "mask") { apply("idle"); setMasked(true); say(pick("mask")); markChip("mask"); }
+    else if (s === "travel") {
+      apply("idle"); travel(1); markChip("travel");
+      setTimeout(() => { travel(0); apply("asking"); markChip("travel"); }, 1300);
+    }
+    else demoSet(s);
+  }
+  // costume picker
+  const costumeBox = document.getElementById("costumes");
+  [["none","Sin disfraz"],["vino","Bajovelo"],["vinoblog","Blog"],["vinorecursos","Recursos"],["vinotrivia","Trivia"],["vinoreels","Reels"]].forEach(([c, label]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.id = "costume-" + c; b.innerHTML = `<b>${label}</b>`;
+    b.setAttribute("aria-pressed", String(c === "vino"));
+    b.addEventListener("click", () => {
+      costume(c);
+      costumeBox.querySelectorAll(".chip").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    });
+    costumeBox.appendChild(b);
+  });
+  costume("vino");
+  function markChip(which) {
+    if (APP) return;
+    controls.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.s === (which || cur))));
+  }
+  function demoSet(s) { apply(s); clearTimeout(afterT); }
+
+  let tourI = 0, tourT = null;
+  const order = CHIPS.map(c => c[0]);
+  function tick() { run(order[tourI++ % order.length]); }
+  function startTour() { if (tourT) return; tick(); tourT = setInterval(tick, 3400); tourBtn.textContent = "Pausar demo"; tourBtn.setAttribute("aria-pressed", "true"); }
+  function stopTour() { clearInterval(tourT); tourT = null; tourBtn.textContent = "Reproducir demo"; tourBtn.setAttribute("aria-pressed", "false"); }
+  tourBtn.addEventListener("click", () => tourT ? stopTour() : startTour());
+
+  const body = svg.querySelector(".all");
+  body.style.cursor = "pointer";
+  body.addEventListener("click", () => { stopTour(); poke(); });
+  window.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height * 0.56;
+    look((e.clientX - cx) / 260, (e.clientY - cy) / 260);
+  });
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { apply("idle"); markChip(); } else startTour();
+})();
+</script>

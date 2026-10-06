@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # build.sh usa el número de commits como número de build
+
+      - name: Compilar Carita.app
+        run: bash build.sh
+
+      - name: Empaquetar
+        run: |
+          cd build
+          ditto -c -k --keepParent Carita.app Carita.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Carita
+          path: build/Carita.zip
+
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" build/Carita.zip \
+            --title "Carita ${GITHUB_REF_NAME#v}" --generate-notes
