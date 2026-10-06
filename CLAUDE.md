@@ -15,8 +15,9 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 
 | Archivo | Qué es |
 |---|---|
-| `main.swift` | La app (AppKit, un solo archivo, sin Xcode). Panel flotante transparente con un `WKWebView`, capa `DragView` para arrastrar y hacer clic, bocadillo nativo (`BubbleView` en su propio panel), voz (`AVSpeechSynthesizer`), viaje hasta el ratón, menú contextual. |
-| `face.html` | El personaje: SVG + CSS + JS. Sirve a la vez de **demo en el navegador** (sin `window.webkit`) y de cara dentro de la app (`html.app`). API global `window.carita`: `set(state)`, `poke()`, `look(x,y)`, `reply(text)`, `talking(bool)`, `costume(name)`, `travel(dir)`, `mask(bool)`, `say(text)`. |
+| `main.swift` | La app (AppKit, sin Xcode). Panel flotante transparente con un `WKWebView`, capa `DragView` para arrastrar y hacer clic, bocadillo nativo (`BubbleView` en su propio panel), voz (`AVSpeechSynthesizer`), viaje hasta el ratón, menú contextual. |
+| `Settings.swift` | `Config` (`~/.carita/config.json`, única fuente de verdad; migra lo que había en `UserDefaults`), `ConfigStore` (guarda y recarga si se edita a mano) y la ventana de Ajustes en SwiftUI. |
+| `face.html` | El personaje: SVG + CSS + JS. Sirve a la vez de **demo en el navegador** (sin `window.webkit`) y de cara dentro de la app (`html.app`). API global `window.carita`: `set(state)`, `poke()`, `look(x,y)`, `reply(text)`, `talking(bool)`, `costume(name)`, `travel(dir)`, `mask(bool)`, `say(text)`, `hidden(bool)`, `config({nombre, breakAfter, maskAfter, breakGap, frases})`. |
 | `hook.sh` | Lo ejecuta Claude Code en cada evento. Lee el JSON por stdin, decide el estado y lo escribe de forma atómica. |
 | `carita.py` | Ayudante de los hooks: elige disfraz por la ruta del proyecto, detecta deploys en Bash y si salieron bien, y resume la última respuesta (desde `transcript_path`) para la voz. Imprime solo el estado final. |
 | `hooks.py` | Añade/quita los hooks de Carita en `~/.claude/settings.json` sin tocar lo demás (`install` / `uninstall`). Idempotente. |
@@ -28,7 +29,7 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 `hello, thinking, reading, writing, running, deploying, shipped, browsing, delegating, asking, done, bye` llegan de los hooks. `idle, sleepy, sleeping, stretch, poke` los decide `face.html`. Cada estado está en el objeto `S` de `face.html` (ojos, boca, cejas, si habla, `lock`, `after`) y sus frases en `FRASES` (variantes `…Vino` para Bajovelo).
 
 ### Disfraces (`~/.carita/costume`)
-`none, vino, vinoblog, vinorecursos, vinotrivia, vinoreels`. Los elige `pick_costume()` en `carita.py` por palabras en la ruta; un archivo `.carita` en la raíz del proyecto lo fuerza. En `face.html`, `data-costume` y `data-cbase="vino"` (boina siempre en Bajovelo).
+`none, vino, vinoblog, vinorecursos, vinotrivia, vinoreels`. Los elige `pick_costume()` en `carita.py` por palabras en la ruta (reglas `disfraces` de `config.json`, o `RULES` de serie); un archivo `.carita` en la raíz del proyecto lo fuerza. En `face.html`, `data-costume` y `data-cbase="vino"` (boina siempre en Bajovelo).
 
 ## Reglas que no se pueden romper
 
@@ -38,12 +39,14 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 - **Geometría sincronizada:** el `viewBox` de la app (`-20 -24 240 224` en `face.html`) y `VB_X`, `VB_Y`, `VB_W`, `baseSize` en `main.swift` deben coincidir. De ahí salen el área clicable (elipse centrada en 100,112), la posición del bocadillo y hacia dónde miran los ojos.
 - **Solo el bicho recibe clics:** el panel cambia `ignoresMouseEvents` según el ratón esté o no sobre el cuerpo. No romperlo con ventanas nuevas.
 - **Nada sale del Mac** salvo lo que se pida explícitamente (p. ej., buscar actualizaciones).
-- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas, un solo `main.swift` salvo que crezca mucho (si se parte, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
+- **Ajustes solo en `config.json`**, nunca en `UserDefaults` (salvo la posición de la ventana, que guarda AppKit). Cualquier cambio pasa por `store.c` y se aplica en `configChanged(from:)`.
+- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift` y `Settings.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
 
 ## Cómo probar
 
 - **Cara:** abre `face.html` en el navegador; los botones de la demo recorren todos los estados y disfraces.
 - **App:** `./build.sh && open build/Carita.app` (o `bash install.sh` para instalarla de verdad). Clic derecho → «Probar expresión».
+- **Registro:** `open --env CARITA_LOG=/tmp/carita.log build/Carita.app` apunta cada llamada a la cara, la voz, el bocadillo, no molestar y los atajos.
 - **Hooks sin Claude Code:**
   ```bash
   echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' | ~/.carita/hook.sh bashpre; cat ~/.carita/state   # deploying

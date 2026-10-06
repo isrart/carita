@@ -149,14 +149,29 @@ def project_root(cwd):
 
 
 # Disfraces por tipo de proyecto (todo es Bajovelo): boina siempre, y en la mano
-# algo distinto según el subproyecto. Palabras clave en la ruta de la carpeta.
-SUBPROJECTS = [
+# algo distinto según el subproyecto. Palabras clave en la ruta de la carpeta, en orden:
+# la primera regla que encaja gana. Se pueden cambiar en Ajustes (~/.carita/config.json).
+RULES = [
     ("vinotrivia", ("trivia", "quiz", "preguntas", "denominacion")),
     ("vinoreels", ("reel", "insta", "video", "redes", "social")),
     ("vinorecursos", ("recurso", "resource", "guia", "ficha", "descarga")),
     ("vinoblog", ("blog", "articulo")),
+    ("vino", ("bajovelo", "vino", "wine", "sommelier")),
 ]
-WINE = ("bajovelo", "vino", "wine", "sommelier")
+
+
+def costume_rules():
+    """Las reglas de config.json si están bien; si no, las de serie."""
+    try:
+        with open(os.path.join(DIR, "config.json"), encoding="utf-8") as f:
+            rules = json.load(f).get("disfraces")
+        out = [(str(r["disfraz"]), tuple(str(w).lower() for w in r["palabras"] if str(w).strip()))
+               for r in rules]
+        return out if isinstance(rules, list) else RULES
+    except Exception:
+        return RULES
+
+
 SHORT = {"blog": "vinoblog", "recursos": "vinorecursos", "trivia": "vinotrivia", "reels": "vinoreels",
          "bajovelo": "vino", "vino": "vino", "none": "none"}
 
@@ -175,11 +190,9 @@ def pick_costume(cwd):
     except Exception:
         pass
     path = " ".join((name, root, os.path.abspath(cwd))).lower()
-    for costume, words in SUBPROJECTS:
+    for costume, words in costume_rules():
         if any(w in path for w in words):
             return costume
-    if any(w in path for w in WINE):
-        return "vino"
     return "none"
 
 

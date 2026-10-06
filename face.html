@@ -498,8 +498,8 @@ html.app .bubble{display:none}
 
 <script>
 (() => {
-  // ✏️ Tu nombre, para cuando te llama
-  const NOMBRE = "Isra";
+  // Tu nombre, para cuando te llama (en la app lo manda Ajustes con carita.config)
+  let NOMBRE = "Isra";
 
   const host = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.carita;
   const APP = !!host;
@@ -560,7 +560,7 @@ html.app .bubble{display:none}
   let afterT, bubbleT, pendingT, pokeT, queuedT, lockUntil = 0;
   let blinkT, loopT, paused = false, hiddenApp = false;
   // break reminder: after this much continuous work, a stretch; if ignored, the sleep mask
-  const BREAK_AFTER = 90 * 60e3, MASK_AFTER = 10 * 60e3, BREAK_GAP = 5 * 60e3;
+  let BREAK_AFTER = 90 * 60e3, MASK_AFTER = 10 * 60e3, BREAK_GAP = 5 * 60e3;
   let workStart = Date.now(), breakAskedAt = 0, masked = false;
 
   const pick = (k, t) => {
@@ -708,7 +708,15 @@ html.app .bubble{display:none}
     svg.classList.toggle("travel", !!dir);
     svg.style.setProperty("--lean", (dir * 9) + "deg");
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden};
+  // ajustes de la app: {nombre, breakAfter, maskAfter, breakGap (ms), frases}
+  function config(c) {
+    if (!c) return;
+    if (typeof c.nombre === "string" && c.nombre.trim()) NOMBRE = c.nombre.trim();
+    if (c.breakAfter > 0) BREAK_AFTER = c.breakAfter;
+    if (c.maskAfter > 0) MASK_AFTER = c.maskAfter;
+    if (c.breakGap > 0) BREAK_GAP = c.breakGap;
+  }
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config};
 
   // fireworks particles
   const fw = document.getElementById("fireworks");

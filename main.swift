@@ -437,6 +437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var bubbleText = ""
     var bubbleAnchor = NSRect.zero
     var dirSource: DispatchSourceFileSystemObject?
+    var fileSources: [String: (source: DispatchSourceFileSystemObject, inode: UInt64)] = [:]
     var fallbackTimer: Timer?
     var mouseMonitors: [Any] = []
     var lastMTime: Date?
@@ -448,7 +449,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var pageReady = false
     var lastLook = CGPoint(x: 9, y: 9)
     let speech = AVSpeechSynthesizer()
-    let defaults = UserDefaults.standard
     var statusItem: NSStatusItem!
     var unmuteTimer: Timer?
     var noticeTimer: Timer?
@@ -477,37 +477,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         ("Reels (móvil grabando)", "vinoreels"),
     ]
 
-    var scale: CGFloat {
-        let v = defaults.double(forKey: "scale")
-        return v > 0 ? CGFloat(v) : 1
-    }
-    var talks: Bool { defaults.bool(forKey: "talks") }
-    /// Leer en voz alta el resumen de cada respuesta (activado por defecto).
-    var readAloud: Bool { defaults.object(forKey: "readAloud") == nil ? true : defaults.bool(forKey: "readAloud") }
-    /// Ir a buscarte cuando te necesita y estás en otra app (activado por defecto).
-    var seeksYou: Bool { defaults.object(forKey: "seeksYou") == nil ? true : defaults.bool(forKey: "seeksYou") }
-    var costumeChoice: String { defaults.string(forKey: "costume") ?? "auto" }
+    let store = ConfigStore()
+    let settingsWindow = SettingsWindow()
+    var cfg: Config { store.c }
+
+    var scale: CGFloat { CGFloat(cfg.tamano) }
+    var talks: Bool { cfg.avisosVoz }
+    /// Leer en voz alta el resumen de cada respuesta.
+    var readAloud: Bool { cfg.leerRespuestas }
+    /// Ir a buscarte cuando te necesita y estás en otra app.
+    var seeksYou: Bool { cfg.irABuscarte }
+    var costumeChoice: String { cfg.disfraz }
     /// Escondida a mano (se recuerda entre reinicios).
-    var hiddenByUser: Bool { defaults.bool(forKey: "hidden") }
+    var hiddenByUser: Bool { cfg.oculta }
     /// Silenciada: sin voz, sin bocadillos y sin ir a buscarte, hasta esta hora.
     var mutedUntil: Date? {
-        let d = defaults.object(forKey: "mutedUntil") as? Date
-        return (d ?? .distantPast) > Date() ? d : nil
+        guard let t = cfg.silenciadaHasta else { return nil }
+        let d = Date(timeIntervalSince1970: t)
+        return d > Date() ? d : nil
     }
     var muted: Bool { mutedUntil != nil }
     /// Ni se ve ni habla ni viaja.
     var away: Bool { hiddenByUser || dndReason != nil }
-    var dndCamera: Bool { defaults.object(forKey: "dndCamera") == nil ? true : defaults.bool(forKey: "dndCamera") }
-    var dndScreen: Bool { defaults.object(forKey: "dndScreen") == nil ? true : defaults.bool(forKey: "dndScreen") }
+    var dndCamera: Bool { cfg.noMolestarCamara }
+    var dndScreen: Bool { cfg.noMolestarPantalla }
     let interruptions = Interruptions()
     let hotKeys = HotKeys()
     /// Atajos guardados; nil = desactivado.
-    func shortcut(_ key: String, _ fallback: Shortcut) -> Shortcut? {
-        if let s = defaults.object(forKey: key) as? String, s == "off" { return nil }
-        return Shortcut(array: defaults.object(forKey: key)) ?? fallback
-    }
-    var toggleShortcut: Shortcut? { shortcut("hotkeyToggle", .toggleDefault) }
-    var muteShortcut: Shortcut? { shortcut("hotkeyMute", .muteDefault) }
+    var toggleShortcut: Shortcut? { Shortcut(array: cfg.atajoMostrar) }
+    var muteShortcut: Shortcut? { Shortcut(array: cfg.atajoCallar) }
     /// Por qué está en «no molestar» ahora mismo (nil si no lo está).
     var dndReason: String? {
         if dndCamera && interruptions.camera { return "cámara encendida" }
@@ -517,8 +515,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var wasAway = false
     var quiet: Bool { muted || away }
 
-    /// La mejor voz en español de España que tengas instalada.
-    lazy var voice: AVSpeechSynthesisVoice? = {
+    /// La voz elegida en Ajustes o, si no, la mejor en español de España que tengas instalada.
+    var voice: AVSpeechSynthesisVoice? {
+        if !cfg.voz.isEmpty, let v = AVSpeechSynthesisVoice(identifier: cfg.voz) { return v }
+        return bestVoice
+    }
+    lazy var bestVoice: AVSpeechSynthesisVoice? = {
         let novelty = ["eloquence", "speech.synthesis.voice"]
         let candidates = AVSpeechSynthesisVoice.speechVoices().filter { v in
             v.language == "es-ES" && !novelty.contains { v.identifier.lowercased().contains($0) }
@@ -573,6 +575,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = statusIcon(alert: false)
         statusItem.button?.toolTip = "Carita"
+        store.onChange = { [weak self] old in self?.configChanged(from: old) }
+        store.onError = { [weak self] msg in self?.notice(msg) }
         interruptions.onChange = { [weak self] in self?.interruptionsChanged() }
         interruptions.start()
         wasAway = away
@@ -617,6 +621,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             dirSource = src
         }
 
+        watchFile(configPath)
+
         // el ratón: fuera de la app (monitor global, no pide permisos) y dentro (monitor local)
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
         if let g = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] _ in self?.mouseMoved() }) {
@@ -630,6 +636,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         fallbackTimer = Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(fallbackTick),
                                              userInfo: nil, repeats: true)
         fallbackTimer?.tolerance = 0.5
+    }
+
+    /// Los editores a veces guardan escribiendo encima (sin `mv`): eso no cambia la carpeta,
+    /// así que los archivos que se editan a mano se vigilan también uno a uno.
+    func watchFile(_ path: String) {
+        fileSources[path]?.source.cancel()
+        fileSources[path] = nil
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else { return }   // aún no existe: lo vuelve a intentar checkFiles
+        var st = stat()
+        fstat(fd, &st)
+        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .extend, .delete, .rename],
+                                                            queue: .main)
+        src.setEventHandler { [weak self] in
+            self?.performSelector(onMainThread: #selector(AppDelegate.checkFiles), with: nil, waitUntilDone: false)
+        }
+        src.setCancelHandler { close(fd) }
+        src.resume()
+        fileSources[path] = (src, UInt64(st.st_ino))
+    }
+
+    /// Tras un `mv` el descriptor apunta al archivo viejo: se vuelve a abrir.
+    func rewatchFiles() {
+        for path in [configPath] {
+            var st = stat()
+            let exists = stat(path, &st) == 0
+            if exists && fileSources[path]?.inode != UInt64(st.st_ino) { watchFile(path) }
+        }
     }
 
     @objc func fallbackTick() {
@@ -663,6 +697,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         lastSayMTime = modDate(sayPath)
         lastCostumeMTime = nil   // el disfraz sí se aplica al arrancar
         if away { js("carita.hidden(true)") }
+        sendFaceConfig()
         if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
         checkFiles()
         mouseMoved()
@@ -705,13 +740,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
-    func speak(_ text: String, interrupt: Bool) {
-        guard !quiet else { return }
+    func speak(_ text: String, interrupt: Bool, force: Bool = false) {
+        guard force || !quiet else { return }
         debugLog("voz: " + text)
         let utterance = AVSpeechUtterance(string: text.replacingOccurrences(of: "*", with: ""))
         utterance.voice = voice
-        utterance.rate = 0.5
-        utterance.pitchMultiplier = 1.15
+        utterance.rate = Float(cfg.velocidad)
+        utterance.pitchMultiplier = Float(cfg.tono)
         if interrupt && speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
         speech.speak(utterance)
     }
@@ -902,6 +937,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     @objc func checkFiles() {
         guard pageReady else { return }
+        rewatchFiles()
+        store.reloadIfChanged()
 
         if let m = modDate(statePath), m != lastMTime {
             lastMTime = m
@@ -1036,6 +1073,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        let settings = NSMenuItem(title: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
         let quit = NSMenuItem(title: "Salir de Carita", action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
@@ -1080,21 +1120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         refreshMenu()
     }
 
-    @objc func toggleDndCamera() {
-        defaults.set(!dndCamera, forKey: "dndCamera")
-        interruptionsChanged()
-    }
-
-    @objc func toggleDndScreen() {
-        defaults.set(!dndScreen, forKey: "dndScreen")
-        interruptionsChanged()
-    }
-
-    @objc func toggleHidden() {
-        defaults.set(!hiddenByUser, forKey: "hidden")
-        applyVisibility()
-        refreshMenu()
-    }
+    @objc func toggleDndCamera() { store.c.noMolestarCamara.toggle() }
+    @objc func toggleDndScreen() { store.c.noMolestarPantalla.toggle() }
+    @objc func toggleHidden() { store.c.oculta.toggle() }
 
     /// Enseña o esconde el bicho (y su bocadillo) según `away`.
     func applyVisibility() {
@@ -1115,16 +1143,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     @objc func toggleMute() {
         if muted {
-            defaults.removeObject(forKey: "mutedUntil")
+            store.c.silenciadaHasta = nil
             notice("¡Ya puedo hablar otra vez!")
         } else {
             speech.stopSpeaking(at: .immediate)
             notice("Vale, me callo una horita")
-            defaults.set(Date().addingTimeInterval(3600), forKey: "mutedUntil")
-            goHome()
+            store.c.silenciadaHasta = Date().addingTimeInterval(3600).timeIntervalSince1970
         }
-        scheduleUnmute()
-        refreshMenu()
     }
 
     /// Al acabar el silencio, el menú vuelve a «Silenciar 1 hora» solo.
@@ -1144,44 +1169,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     @objc func setSize(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? Double else { return }
-        defaults.set(value, forKey: "scale")
+        store.c.tamano = value
+    }
+
+    func applyScale(animate: Bool) {
         var f = panel.frame
-        let newSize = NSSize(width: baseSize.width * CGFloat(value), height: baseSize.height * CGFloat(value))
+        let newSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
         f.origin.x += (f.width - newSize.width) / 2   // mantiene los pies en el mismo sitio
         f.size = newSize
-        panel.setFrame(f, display: true, animate: true)
+        panel.setFrame(f, display: true, animate: animate)
         if !bubbleText.isEmpty { showBubble(bubbleText) }
-        refreshMenu()
     }
 
     @objc func setCostume(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String else { return }
-        defaults.set(value, forKey: "costume")
-        applyCostume()
-        refreshMenu()
+        store.c.disfraz = value
     }
 
-    @objc func toggleTalk() {
-        defaults.set(!talks, forKey: "talks")
-        if talks { speak("¡Vale! Te aviso con voz", interrupt: true) }
-        refreshMenu()
+    @objc func toggleTalk() { store.c.avisosVoz.toggle() }
+    @objc func toggleRead() { store.c.leerRespuestas.toggle() }
+    @objc func toggleSeek() { store.c.irABuscarte.toggle() }
+
+    @objc func openSettings() {
+        settingsWindow.show(store: store, actions: SettingsActions(
+            testVoice: { [weak self] in self?.speak("¡Hola, \(self?.cfg.nombre ?? "")! Así sueno ahora. ¿Te gusta?", interrupt: true, force: true) },
+            dndStatus: { [weak self] in
+                guard let self = self else { return "" }
+                return [self.interruptions.camera ? "cámara encendida" : "cámara apagada",
+                        self.interruptions.sharing ?? "sin compartir pantalla"].joined(separator: ", ")
+            },
+            pauseHotKeys: { [weak self] paused in
+                guard let self = self else { return }
+                if paused { self.hotKeys.unregister(1); self.hotKeys.unregister(2) } else { self.registerHotKeys(announce: false) }
+            }))
     }
 
-    @objc func toggleRead() {
-        defaults.set(!readAloud, forKey: "readAloud")
-        if readAloud {
-            js("carita.reply('Te leo un resumen de cada respuesta')")
-            speak("Vale. A partir de ahora te leo un resumen de cada respuesta.", interrupt: true)
-        } else {
-            speech.stopSpeaking(at: .immediate)
-            js("carita.say('Vale, me callo')")
+    /// Lo que la cara necesita saber de la config (nombre y tiempos del descanso, en ms).
+    func sendFaceConfig() {
+        let face: [String: Any] = [
+            "nombre": cfg.nombre,
+            "breakAfter": cfg.descansoMinutos * 60_000,
+            "maskAfter": cfg.antifazMinutos * 60_000,
+            "breakGap": cfg.pausaMinutos * 60_000,
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: face),
+              let json = String(data: data, encoding: .utf8) else { return }
+        js("carita.config(\(json))")
+    }
+
+    /// Cualquier cambio de config (menú, Ajustes o config.json a mano) se aplica al momento.
+    func configChanged(from old: Config) {
+        let c = cfg
+        if c.tamano != old.tamano { applyScale(animate: false) }
+        if c.disfraz != old.disfraz { applyCostume() }
+        if c.oculta != old.oculta || c.noMolestarCamara != old.noMolestarCamara || c.noMolestarPantalla != old.noMolestarPantalla {
+            if away != wasAway { applyVisibility() }
         }
-        refreshMenu()
-    }
-
-    @objc func toggleSeek() {
-        defaults.set(!seeksYou, forKey: "seeksYou")
-        if !seeksYou { goHome() }
+        if c.silenciadaHasta != old.silenciadaHasta {
+            if muted { goHome() }
+            scheduleUnmute()
+        }
+        if c.atajoMostrar != old.atajoMostrar || c.atajoCallar != old.atajoCallar { registerHotKeys() }
+        if c.irABuscarte != old.irABuscarte && !c.irABuscarte { goHome() }
+        if c.avisosVoz != old.avisosVoz && c.avisosVoz { speak("¡Vale! Te aviso con voz", interrupt: true) }
+        if c.leerRespuestas != old.leerRespuestas {
+            if c.leerRespuestas {
+                js("carita.reply('Te leo un resumen de cada respuesta')")
+                speak("Vale. A partir de ahora te leo un resumen de cada respuesta.", interrupt: true)
+            } else {
+                speech.stopSpeaking(at: .immediate)
+                js("carita.say('Vale, me callo')")
+            }
+        }
+        if c.nombre != old.nombre || c.descansoMinutos != old.descansoMinutos
+            || c.antifazMinutos != old.antifazMinutos || c.pausaMinutos != old.pausaMinutos { sendFaceConfig() }
         refreshMenu()
     }
 

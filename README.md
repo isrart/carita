@@ -33,7 +33,7 @@ En cualquier cosa de Bajovelo lleva la boina granate, y en la mano algo según e
 | bajovelo, vino, wine (lo demás de Bajovelo) | boina + copa de vino |
 | nada de lo anterior | sin disfraz |
 
-Si alguna carpeta no la pilla bien, crea un archivo `.carita` en su raíz con una palabra: `blog`, `recursos`, `trivia`, `reels`, `bajovelo` o `none`. También puedes fijarlo a mano: clic derecho → Disfraz.
+Las palabras se pueden cambiar (y añadir reglas nuevas) en Ajustes → Disfraces. Si alguna carpeta no la pilla bien, crea un archivo `.carita` en su raíz con una palabra: `blog`, `recursos`, `trivia`, `reels`, `bajovelo` o `none`. También puedes fijarlo a mano: clic derecho → Disfraz.
 
 ## Fiesta de deploy
 
@@ -63,7 +63,8 @@ Cuando termino de responder, Carita te dice en voz alta la idea general (las pri
 
 - **Callarla**: clic encima mientras habla. También se calla sola si le mandas otra cosa a Claude Code.
 - **Activar o desactivar**: clic derecho → «Leer mis respuestas en voz alta».
-- **Mejor voz**: la que viene de serie suena algo robótica. En Ajustes del Sistema → Accesibilidad → Contenido leído → Voz del sistema → Gestionar voces, descarga una voz de *Español (España)* con la etiqueta «mejorada» o «prémium» (por ejemplo, Mónica). Carita elige sola la mejor que tengas instalada; reiníciala después de descargarla.
+- **Elegir voz, velocidad y tono**: Ajustes → Voz, con botón «Probar».
+- **Mejor voz**: la que viene de serie suena algo robótica. En Ajustes del Sistema → Accesibilidad → Contenido leído → Voz del sistema → Gestionar voces, descarga una voz de *Español (España)* con la etiqueta «mejorada» o «prémium» (por ejemplo, Mónica). Carita elige sola la mejor que tengas instalada (o la que escojas en Ajustes → Voz); reiníciala después de descargarla.
 
 ## Instalar
 
@@ -102,16 +103,21 @@ Claude Code ──hook──▶ ~/.carita/hook.sh <estado> ──▶ ~/.carita/s
 
 Los hooks solo escriben una palabra en un archivo. `carita.py` elige el disfraz, detecta los deploys y, al terminar, saca la última respuesta de la conversación y deja el resumen en `~/.carita/say`. La app vigila esa carpeta (sin consultarla en bucle) y cambia la cara al momento. Cuando se duerme, para todas las animaciones para no gastar batería. Nada sale de tu Mac.
 
-## Personalizar
+## Ajustes
 
-Todo el personaje está en `face.html`:
+Menú → **Ajustes…** (`⌘,` con el menú abierto). Todo se aplica al momento, sin reiniciar:
 
-- `NOMBRE` al principio del script: cómo te llama.
-- `FRASES`: lo que dice en cada estado.
-- `BREAK_AFTER`, `MASK_AFTER`, `BREAK_GAP`: los tiempos del modo descanso.
-- Colores en `:root` (`--clay`, `--leaf`…).
+- **General**: tu nombre (cómo te llama), tamaño, ir a buscarte y abrir al iniciar sesión.
+- **Voz**: leer respuestas, avisos con voz, qué voz, velocidad y tono.
+- **Descanso**: minutos hasta estirarse (90), hasta el antifaz (10) y pausa que cuenta como descanso (5).
+- **Disfraces**: el disfraz fijo o automático y las palabras de cada uno.
+- **No molestar** y **Atajos**.
 
-Puedes abrir `face.html` en el navegador para ver la demo. Tras cambiarlo, vuelve a ejecutar `bash install.sh`.
+Se guardan en `~/.carita/config.json`. Puedes editarlo a mano; si lo guardas con un error, Carita te avisa y sigue con lo de antes.
+
+## Personalizar el personaje
+
+El dibujo está en `face.html`: frases (`FRASES`), colores en `:root` (`--clay`, `--leaf`…). Puedes abrir `face.html` en el navegador para ver la demo. Tras cambiarlo, vuelve a ejecutar `bash install.sh`.
 
 ## Desinstalar
 
