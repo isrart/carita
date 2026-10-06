@@ -6,6 +6,7 @@ import WebKit
 import AVFoundation
 import ServiceManagement
 import CoreMediaIO
+import Carbon.HIToolbox
 
 let stateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".carita")
 let statePath = (stateDir as NSString).appendingPathComponent("state")
@@ -64,6 +65,135 @@ func statusIcon(alert: Bool) -> NSImage {
     }
     img.isTemplate = true
     return img
+}
+
+/// Un atajo de teclado: código de tecla y modificadores de Carbon.
+struct Shortcut: Equatable {
+    var keyCode: UInt32
+    var modifiers: UInt32
+
+    static let toggleDefault = Shortcut(keyCode: UInt32(kVK_ANSI_C), modifiers: UInt32(controlKey | optionKey | cmdKey))
+    static let muteDefault = Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey | cmdKey))
+
+    init(keyCode: UInt32, modifiers: UInt32) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+    }
+
+    init?(array: Any?) {
+        guard let a = array as? [Int], a.count == 2 else { return nil }
+        self.init(keyCode: UInt32(a[0]), modifiers: UInt32(a[1]))
+    }
+    var array: [Int] { [Int(keyCode), Int(modifiers)] }
+
+    var eventModifiers: NSEvent.ModifierFlags {
+        var f: NSEvent.ModifierFlags = []
+        if modifiers & UInt32(controlKey) != 0 { f.insert(.control) }
+        if modifiers & UInt32(optionKey) != 0 { f.insert(.option) }
+        if modifiers & UInt32(shiftKey) != 0 { f.insert(.shift) }
+        if modifiers & UInt32(cmdKey) != 0 { f.insert(.command) }
+        return f
+    }
+
+    static func carbonModifiers(_ f: NSEvent.ModifierFlags) -> UInt32 {
+        var m: UInt32 = 0
+        if f.contains(.control) { m |= UInt32(controlKey) }
+        if f.contains(.option) { m |= UInt32(optionKey) }
+        if f.contains(.shift) { m |= UInt32(shiftKey) }
+        if f.contains(.command) { m |= UInt32(cmdKey) }
+        return m
+    }
+
+    static let specialKeys: [Int: String] = [
+        kVK_Space: "Espacio", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_Escape: "⎋",
+        kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
+        kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
+        kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
+    ]
+
+    /// La tecla tal como sale en tu teclado (distribución actual).
+    var keyName: String {
+        if let s = Shortcut.specialKeys[Int(keyCode)] { return s }
+        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+              let ptr = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return "?" }
+        let data = Unmanaged<CFData>.fromOpaque(ptr).takeUnretainedValue() as Data
+        var dead: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var len = 0
+        let status = data.withUnsafeBytes { raw -> OSStatus in
+            let layout = raw.bindMemory(to: UCKeyboardLayout.self).baseAddress!
+            return UCKeyTranslate(layout, UInt16(keyCode), UInt16(kUCKeyActionDisplay), 0, UInt32(LMGetKbdType()),
+                                  OptionBits(kUCKeyTranslateNoDeadKeysBit), &dead, chars.count, &len, &chars)
+        }
+        guard status == noErr, len > 0 else { return "?" }
+        return String(utf16CodeUnits: chars, count: len).uppercased()
+    }
+
+    /// ¿Lo usa ya macOS (Spotlight, capturas, cambiar de app…)? Los de otras apps no se pueden
+    /// consultar: RegisterEventHotKey no da error aunque otra app tenga la misma combinación.
+    var clashesWithSystem: Bool {
+        var unmanaged: Unmanaged<CFArray>?
+        guard CopySymbolicHotKeys(&unmanaged) == noErr,
+              let list = unmanaged?.takeRetainedValue() as? [[String: Any]] else { return false }
+        let relevant = UInt32(cmdKey | optionKey | controlKey | shiftKey)
+        return list.contains { hk in
+            guard (hk[kHISymbolicHotKeyEnabled as String] as? Bool) ?? false,
+                  let code = hk[kHISymbolicHotKeyCode as String] as? Int,
+                  let mods = hk[kHISymbolicHotKeyModifiers as String] as? Int else { return false }
+            return UInt32(code) == keyCode && UInt32(mods) & relevant == modifiers & relevant
+        }
+    }
+
+    var display: String {
+        var s = ""
+        if modifiers & UInt32(controlKey) != 0 { s += "⌃" }
+        if modifiers & UInt32(optionKey) != 0 { s += "⌥" }
+        if modifiers & UInt32(shiftKey) != 0 { s += "⇧" }
+        if modifiers & UInt32(cmdKey) != 0 { s += "⌘" }
+        return s + keyName
+    }
+}
+
+/// Atajos globales con RegisterEventHotKey (Carbon): funcionan con cualquier app delante
+/// y no piden permiso de accesibilidad.
+final class HotKeys {
+    private var refs: [UInt32: EventHotKeyRef] = [:]
+    private var actions: [UInt32: () -> Void] = [:]
+
+    init() {
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
+            var hk = EventHotKeyID()
+            GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                              nil, MemoryLayout<EventHotKeyID>.size, nil, &hk)
+            if let userData = userData {
+                Unmanaged<HotKeys>.fromOpaque(userData).takeUnretainedValue().fire(hk.id)
+            }
+            return noErr
+        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
+    }
+
+    private func fire(_ id: UInt32) { actions[id]?() }
+
+    /// Devuelve false si la combinación ya la usa macOS (o no se pudo registrar).
+    @discardableResult
+    func register(_ id: UInt32, _ shortcut: Shortcut?, action: @escaping () -> Void) -> Bool {
+        unregister(id)
+        guard let shortcut = shortcut else { return true }
+        if shortcut.clashesWithSystem { return false }
+        var ref: EventHotKeyRef?
+        let hkID = EventHotKeyID(signature: OSType(0x43617269), id: id)   // 'Cari'
+        let status = RegisterEventHotKey(shortcut.keyCode, shortcut.modifiers, hkID, GetApplicationEventTarget(), 0, &ref)
+        guard status == noErr, let r = ref else { return false }
+        refs[id] = r
+        actions[id] = action
+        return true
+    }
+
+    func unregister(_ id: UInt32) {
+        if let r = refs.removeValue(forKey: id) { UnregisterEventHotKey(r) }
+        actions[id] = nil
+    }
 }
 
 /// No molestar automático: detecta videollamadas y pantalla compartida.
@@ -323,6 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var unmuteTimer: Timer?
     var noticeTimer: Timer?
     var noticeText = ""
+    var pendingNotice: String?
     let baseSize = NSSize(width: 240, height: 224)
 
     // viaje hasta ti cuando te necesita
@@ -369,6 +500,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var dndCamera: Bool { defaults.object(forKey: "dndCamera") == nil ? true : defaults.bool(forKey: "dndCamera") }
     var dndScreen: Bool { defaults.object(forKey: "dndScreen") == nil ? true : defaults.bool(forKey: "dndScreen") }
     let interruptions = Interruptions()
+    let hotKeys = HotKeys()
+    /// Atajos guardados; nil = desactivado.
+    func shortcut(_ key: String, _ fallback: Shortcut) -> Shortcut? {
+        if let s = defaults.object(forKey: key) as? String, s == "off" { return nil }
+        return Shortcut(array: defaults.object(forKey: key)) ?? fallback
+    }
+    var toggleShortcut: Shortcut? { shortcut("hotkeyToggle", .toggleDefault) }
+    var muteShortcut: Shortcut? { shortcut("hotkeyMute", .muteDefault) }
     /// Por qué está en «no molestar» ahora mismo (nil si no lo está).
     var dndReason: String? {
         if dndCamera && interruptions.camera { return "cámara encendida" }
@@ -437,6 +576,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         interruptions.onChange = { [weak self] in self?.interruptionsChanged() }
         interruptions.start()
         wasAway = away
+        registerHotKeys()
         refreshMenu()
         scheduleUnmute()
 
@@ -523,6 +663,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         lastSayMTime = modDate(sayPath)
         lastCostumeMTime = nil   // el disfraz sí se aplica al arrancar
         if away { js("carita.hidden(true)") }
+        if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
         checkFiles()
         mouseMoved()
     }
@@ -859,6 +1000,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
         let show = NSMenuItem(title: hiddenByUser ? "Mostrar Carita" : "Ocultar Carita", action: #selector(toggleHidden), keyEquivalent: "")
         show.target = self
+        setKey(show, toggleShortcut)
         menu.addItem(show)
         if let until = mutedUntil {
             let f = DateFormatter()
@@ -867,6 +1009,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         } else {
             addToggle(menu, "Silenciar 1 hora", false, #selector(toggleMute))
         }
+        setKey(menu.items.last!, muteShortcut)
         menu.addItem(.separator())
 
         addSubmenu(menu, "Tamaño",
@@ -899,9 +1042,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return menu
     }
 
+    /// Enseña el atajo junto a la opción (solo de muestra: lo que funciona es el atajo global).
+    func setKey(_ item: NSMenuItem, _ shortcut: Shortcut?) {
+        guard let sc = shortcut else { return }
+        item.keyEquivalent = sc.keyName.lowercased()
+        item.keyEquivalentModifierMask = sc.eventModifiers
+    }
+
     func refreshMenu() {
         drag.menu = buildMenu()
         statusItem.menu = buildMenu()
+    }
+
+    /// Registra los atajos; si alguno choca con otra app, lo dice. Devuelve los que fallaron.
+    @discardableResult
+    func registerHotKeys(announce: Bool = true) -> [String] {
+        var clash: [String] = []
+        if !hotKeys.register(1, toggleShortcut, action: { [weak self] in self?.toggleHidden() }) {
+            clash.append(toggleShortcut!.display)
+        }
+        if !hotKeys.register(2, muteShortcut, action: { [weak self] in self?.toggleMute() }) {
+            clash.append(muteShortcut!.display)
+        }
+        if !clash.isEmpty {
+            debugLog("atajo ocupado: " + clash.joined(separator: " "))
+            if announce {
+                let msg = "El atajo \(clash.joined(separator: " y ")) ya lo usa el Mac. Cámbialo en Ajustes."
+                if pageReady { notice(msg) } else { pendingNotice = msg }
+            }
+        }
+        return clash
     }
 
     func interruptionsChanged() {
