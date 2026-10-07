@@ -75,7 +75,7 @@ Cuando termino de responder, Carita te dice en voz alta la idea general (las pri
 ### Ya compilada (lo más fácil)
 
 1. Descarga **Carita.zip** de la [última Release](https://github.com/isrart/carita/releases/latest), descomprímelo y mueve **Carita.app** a `~/Applications` (o a Aplicaciones).
-2. **La primera vez, clic derecho → Abrir → Abrir.** La app solo lleva firma *ad hoc* (no hay cuenta de desarrollador de Apple), así que Gatekeeper avisa de que no puede comprobarla. Si ni así te deja, quítale la cuarentena:
+2. **La primera vez, clic derecho → Abrir → Abrir.** La app va firmada con un certificado propio, no con uno de Apple (no hay cuenta de desarrollador), así que Gatekeeper avisa de que no puede comprobarla. Gracias a ese certificado, macOS no olvida los permisos (micrófono, accesibilidad) cuando Carita se actualiza. Si ni así te deja, quítale la cuarentena:
    ```bash
    xattr -dr com.apple.quarantine ~/Applications/Carita.app
    ```

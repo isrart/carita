@@ -63,6 +63,7 @@ Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebV
 
 ## Versiones y commits
 
+- **Firma:** `build.sh` firma con «Carita (firma propia)», un certificado autofirmado que está en el llavero `~/Library/Keychains/carita-firma.keychain-db` (contraseña en `~/.config/carita/keychain.pass`, nunca en el repo); si no está, firma ad hoc. En GitHub Actions sale de los secretos `CARITA_P12` y `CARITA_P12_PASS`; el certificado público está en `.github/carita-firma.pem`. Con la misma identidad, macOS conserva los permisos (TCC) entre versiones, y el actualizador rechaza apps firmadas con otro certificado.
 - Para publicar: sube `VERSION`, commit, `git tag vX.Y.Z && git push --tags`. El workflow comprueba que la etiqueta coincide con `VERSION` y publica la Release con `Carita.zip`; las apps instaladas la ven en «Buscar actualizaciones».
 - Versión en `VERSION` (semver). Súbela en cada mejora que llegue al usuario.
 - Un commit por tarea del `ROADMAP.md`, mensaje en español.

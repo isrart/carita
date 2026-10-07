@@ -113,6 +113,11 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
             }
             let (signCode, _) = Scripts.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", newApp.path], timeout: 30)
             guard signCode == 0 else { return fail("La firma de la app descargada no es válida") }
+            // si esta app va firmada con el certificado propio, la nueva tiene que llevar el mismo
+            if let req = ownCertificateRequirement() {
+                let (reqCode, _) = Scripts.run("/usr/bin/codesign", ["--verify", "-R=\(req)", newApp.path], timeout: 30)
+                guard reqCode == 0 else { return fail("La app descargada no está firmada con el certificado de Carita") }
+            }
 
             // cambiar la vieja por la nueva de una vez (la vieja sigue en memoria hasta el relanzamiento)
             _ = try fm.replaceItemAt(appURL, withItemAt: newApp, backupItemName: nil, options: [])
@@ -131,6 +136,14 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
         p.arguments = ["-c", "while kill -0 \(ProcessInfo.processInfo.processIdentifier) 2>/dev/null; do sleep 0.2; done; open \"$0\"", appURL.path]
         try? p.run()
         NSApp.terminate(nil)
+    }
+
+    /// El requisito de firma de esta app si va con certificado (con firma ad hoc no hay nada que comparar).
+    func ownCertificateRequirement() -> String? {
+        let (code, out) = Scripts.run("/usr/bin/codesign", ["-d", "-r-", Bundle.main.bundlePath], timeout: 10)
+        guard code == 0, let line = out.split(separator: "\n").first(where: { $0.contains("designated => ") }),
+              line.contains("certificate") else { return nil }
+        return String(line.components(separatedBy: "designated => ").last ?? "")
     }
 
     private func fail(_ text: String) {
