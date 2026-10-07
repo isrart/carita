@@ -30,7 +30,7 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 
 ## Días y horas especiales
 
-- **Cumpleaños**: en Ajustes → General apuntas nombres y fechas. Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).
+- **Cumpleaños**: en Ajustes → Cumpleaños apuntas nombres y fechas. Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).
 - **Navidad** (22–26 de diciembre): gorro de Papá Noel y nieve. **Nochevieja**: gorro de fiesta. **Reyes** (5 y 6 de enero): corona. **Halloween**: de fantasma. **Carnaval**: un disfraz distinto cada hora.
 - **De 22:00 a 7:00**: pijama con gorro de dormir; se duerme antes y te pregunta si sigues despierto.
 - **De 7:00 a 8:30**: taza de café humeante.

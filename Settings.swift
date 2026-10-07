@@ -244,7 +244,7 @@ struct SettingsView: View {
 
     // con TabView, en ventanas estrechas macOS esconde las pestañas tras un «»»: barra propia, siempre visible
     static let tabs: [(String, String)] = [("General", "gearshape"), ("Voz", "speaker.wave.2"), ("Descanso", "cup.and.saucer"),
-                                           ("Disfraces", "theatermasks"), ("No molestar", "moon"), ("Atajos", "keyboard")]
+                                           ("Disfraces", "theatermasks"), ("Cumpleaños", "gift"), ("No molestar", "moon"), ("Atajos", "keyboard")]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -255,7 +255,7 @@ struct SettingsView: View {
                             Image(systemName: t.1).font(.system(size: 17))
                             Text(t.0).font(.caption)
                         }
-                        .frame(width: 88, height: 46)
+                        .frame(width: 80, height: 46)
                         .foregroundColor(tab == i ? .accentColor : .secondary)
                         .background(RoundedRectangle(cornerRadius: 8).fill(tab == i ? Color.accentColor.opacity(0.12) : .clear))
                         .contentShape(Rectangle())
@@ -270,8 +270,9 @@ struct SettingsView: View {
                 case 1: VoiceTab(store: store, actions: actions)
                 case 2: BreakTab(store: store)
                 case 3: CostumeTab(store: store)
-                case 4: DndTab(store: store, actions: actions)
-                case 5: ShortcutTab(store: store, actions: actions)
+                case 4: BirthdayTab(store: store)
+                case 5: DndTab(store: store, actions: actions)
+                case 6: ShortcutTab(store: store, actions: actions)
                 default: GeneralTab(store: store, actions: actions)
                 }
             }
@@ -323,26 +324,6 @@ struct GeneralTab: View {
             Section {
                 ValueSlider(title: "Tamaño", value: $store.c.tamano, range: 0.6...1.6, step: 0.05) { "\(Int(($0 * 100).rounded())) %" }
                 Toggle("Ir a buscarme cuando me necesita", isOn: $store.c.irABuscarte)
-            }
-            Section {
-                ForEach($store.c.cumples) { $c in
-                    HStack {
-                        TextField("", text: $c.nombre, prompt: Text("Nombre")).labelsHidden()
-                        Picker("", selection: $c.dia) { ForEach(1...31, id: \.self) { Text("\($0)").tag($0) } }
-                            .labelsHidden().frame(width: 64)
-                        Picker("", selection: $c.mes) {
-                            ForEach(1...12, id: \.self) { m in Text(Calendar(identifier: .gregorian).monthSymbols(es: m)).tag(m) }
-                        }
-                        .labelsHidden().frame(width: 120)
-                        Button { store.c.cumples.removeAll { $0.id == c.id } } label: { Image(systemName: "trash") }
-                            .buttonStyle(.borderless)
-                    }
-                }
-                Button { store.c.cumples.append(Cumple(nombre: "", dia: 1, mes: 1)) } label: { Label("Añadir cumpleaños", systemImage: "plus") }
-            } header: {
-                Text("Cumpleaños")
-            } footer: {
-                Hint("Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).")
             }
             Section {
                 LabeledContent("Lo que dice") {
@@ -583,6 +564,36 @@ struct ShapeRow: View {
         let j = index + d
         guard j >= 0, j < store.c.formas.count else { return }
         store.c.formas.swapAt(index, j)
+    }
+}
+
+struct BirthdayTab: View {
+    @ObservedObject var store: ConfigStore
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach($store.c.cumples) { $c in
+                    HStack {
+                        TextField("", text: $c.nombre, prompt: Text("Nombre")).labelsHidden()
+                        Picker("", selection: $c.dia) { ForEach(1...31, id: \.self) { Text("\($0)").tag($0) } }
+                            .labelsHidden().frame(width: 64)
+                        Picker("", selection: $c.mes) {
+                            ForEach(1...12, id: \.self) { m in Text(Calendar(identifier: .gregorian).monthSymbols(es: m)).tag(m) }
+                        }
+                        .labelsHidden().frame(width: 120)
+                        Button { store.c.cumples.removeAll { $0.id == c.id } } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                Button { store.c.cumples.append(Cumple(nombre: "", dia: 1, mes: 1)) } label: { Label("Añadir cumpleaños", systemImage: "plus") }
+            } header: {
+                Text("Cumpleaños")
+            } footer: {
+                Hint("Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).")
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
