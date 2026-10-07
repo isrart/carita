@@ -234,6 +234,14 @@ html.app .bubble{display:none}
 #c[data-s="stretch"] .bodyg{animation:stretchy 2.2s ease-in-out infinite}
 @keyframes stretchy{50%{transform:scale(.95,1.09)}}
 
+/* seated on the sofa (several creatures resting): no feet or shadow, the cushion covers them */
+#c.seated .foot,#c.seated .shadow{opacity:0}
+#c.seated .all{transform:translateY(6px)}
+#c.seated .arm-l{transform:rotate(-14deg)}
+#c.seated .arm-r{transform:rotate(14deg)}
+/* asleep on the sofa: leaning on the neighbour's shoulder */
+#c.seated[data-s="sleeping"] .all{transform:translateY(6px) rotate(-11deg)}
+
 /* listening: you hold the talk shortcut — hand to the ear and sound waves */
 .waves{opacity:0;transition:opacity .2s}
 #c.listening .waves{opacity:1}
@@ -320,8 +328,8 @@ html.app .bubble{display:none}
       <g class="all">
         <g class="bodyg">
           <!-- feet & arms behind the body -->
-          <ellipse cx="78" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
-          <ellipse cx="122" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
+          <ellipse class="foot" cx="78" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
+          <ellipse class="foot" cx="122" cy="179" rx="15" ry="8" fill="var(--clay-dark)"/>
           <g class="arm-l"><ellipse cx="38" cy="138" rx="10" ry="16" fill="var(--clay-dark)" transform="rotate(20 38 138)"/></g>
           <g class="arm-r"><ellipse cx="162" cy="138" rx="10" ry="16" fill="var(--clay-dark)" transform="rotate(-20 162 138)"/></g>
 
@@ -746,6 +754,11 @@ html.app .bubble{display:none}
       bubbleT = setTimeout(() => { if (!bubble.dataset.sticky) hideBubble(); }, 1200);
     }
   }
+  // sentado en el sofá con los demás bichos
+  function sit(on) {
+    svg.classList.toggle("seated", !!on);
+    wake();
+  }
   // te está escuchando (mantienes el atajo de hablar)
   function listen(on) {
     svg.classList.toggle("listening", !!on);
@@ -772,7 +785,7 @@ html.app .bubble{display:none}
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;
     if ("frases" in c) setFrases(c.frases);
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen,
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit,
     frasesDeSerie: () => FRASES_SERIE};
 
   // fireworks particles

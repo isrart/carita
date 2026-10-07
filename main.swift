@@ -502,6 +502,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let typist = Typist()
     /// El bicho que te está escuchando (mientras mantienes el atajo de hablar).
     weak var listening: Creature?
+    let sofa = Sofa()
     var lastArrival: (state: String, at: Date)?
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
     var cfg: Config { store.c }
@@ -717,6 +718,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkFiles()
         mouseMoved()
         sweepSessions()
+        sofaTick()
+    }
+
+    // MARK: el sofá
+
+    /// ¿Lleva un rato sin hacer nada? (lo que dice la cara —idle, sleepy…— o un estado de trabajo
+    /// que se quedó colgado). Los que te necesitan, viajan o arrastras no cuentan.
+    func isResting(_ c: Creature) -> Bool {
+        let rest: Set<String> = ["idle", "done", "hello", "shipped", "sleepy", "sleeping", "bye"]
+        guard !c.leaving, !c.sofaOptOut, !c.dragging, c.currentState != "asking", listening !== c,
+              c.homeOrigin == nil else { return false }
+        let idleFor = Date().timeIntervalSince(c.lastEvent)
+        return rest.contains(c.currentState) ? idleFor >= 60 : idleFor >= 240
+    }
+
+    /// Cada pocos segundos: si hay dos o más bichos quietos, al sofá.
+    func sofaTick() {
+        let alive = creatures.filter { !$0.leaving }
+        let onSofa = alive.filter { $0.seated || $0.goingToSofa }
+        guard !away, alive.count >= 2 else {
+            for c in onSofa { c.leaveSofa(returning: true) }
+            sofa.hide()
+            return
+        }
+        let resting = alive.filter { !$0.seated && !$0.goingToSofa && $0.travelTimer == nil && isResting($0) }
+        if onSofa.isEmpty && resting.count < 2 {
+            sofa.hide()
+            return
+        }
+        // una plaza por bicho (las de los que están trabajando se quedan libres), de izquierda a derecha
+        let order = alive.sorted { ($0.preSofaOrigin ?? $0.panel.frame.origin).x < ($1.preSofaOrigin ?? $1.panel.frame.origin).x }
+        if !sofa.visible || sofa.seats != alive.count || sofa.scale != scale {
+            let homes = order.map { $0.preSofaOrigin ?? $0.panel.frame.origin }
+            let centerX = homes.map { $0.x + baseSize.width * scale / 2 }.reduce(0, +) / CGFloat(homes.count)
+            let floor = (homes.map { $0.y }.min() ?? 0) + labelHeight + 26 * scale   // un poco detrás de los de pie
+            let screen = primary.panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+            sofa.layout(seats: alive.count, centerX: centerX, floor: floor, screen: screen, scale: scale)
+        }
+        for (i, c) in order.enumerated() where c.seated || c.goingToSofa || resting.contains(where: { $0 === c }) {
+            c.goSit(at: sofa.seatOrigin(i, panelWidth: c.panel.frame.width))
+        }
+        arrangeSofa()
+    }
+
+    /// El respaldo detrás de los sentados; el cojín delante de ellos; los que están de pie, delante de todo.
+    func arrangeSofa() {
+        let alive = creatures.filter { !$0.leaving }
+        guard alive.contains(where: { $0.seated || $0.goingToSofa }) else {
+            sofa.hide()
+            return
+        }
+        sofa.show(below: alive.filter { $0.seated || $0.goingToSofa })
+        for c in alive where !c.seated && !c.goingToSofa {
+            c.panel.order(.above, relativeTo: sofa.front.windowNumber)
+            if !c.bubbleText.isEmpty { c.bubblePanel.orderFrontRegardless() }
+        }
     }
 
     func mouseMoved() {
@@ -1198,6 +1255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wasAway = away
         if away { speech.stopSpeaking(at: .immediate) }
         for c in creatures where !c.leaving { c.applyVisibility(away) }
+        if away { sofa.hide() } else { sofaTick() }
     }
 
     @objc func toggleMute() {
@@ -1369,7 +1427,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Cualquier cambio de config (menú, Ajustes o config.json a mano) se aplica al momento.
     func configChanged(from old: Config) {
         let c = cfg
-        if c.tamano != old.tamano { for k in creatures { k.applyScale() } }
+        if c.tamano != old.tamano {
+            for k in creatures where k.seated || k.goingToSofa { k.leaveSofa(returning: true) }
+            for k in creatures { k.applyScale() }
+        }
         if c.disfraz != old.disfraz { for k in creatures { k.applyCostume() } }
         if c.oculta != old.oculta || c.noMolestarCamara != old.noMolestarCamara || c.noMolestarPantalla != old.noMolestarPantalla {
             if away != wasAway { applyVisibility() }

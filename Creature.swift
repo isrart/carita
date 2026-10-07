@@ -52,6 +52,15 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     var lastInfoMTime: Date?
     var leaving = false
 
+    // el sofá
+    var seated = false
+    var goingToSofa = false
+    var preSofaOrigin: NSPoint?     // dónde estaba antes de sentarse (allí vuelve al levantarse)
+    var sofaHome: NSPoint?          // al levantarse para ir a buscarte, adónde vuelve luego
+    var sofaOptOut = false          // lo has sacado tú del sofá: no vuelve hasta que su sesión haga algo
+    var dragging = false
+    private var onArrive: (() -> Void)?
+
     // viaje hasta ti cuando te necesita
     var homeOrigin: NSPoint?
     var travelTimer: Timer?
@@ -92,8 +101,8 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         drag = DragView(frame: container.bounds)
         drag.autoresizingMask = [.width, .height]
         drag.onClick = { [weak self] in self?.clicked() }
-        drag.onDragStart = { [weak self] in self?.stopTravel() }
-        drag.onDragEnd = { [weak self] in self?.homeOrigin = nil }   // si lo sueltas en otro sitio, se queda ahí
+        drag.onDragStart = { [weak self] in self?.dragStarted() }
+        drag.onDragEnd = { [weak self] in self?.dragEnded() }
         drag.onMouseMoved = { [weak self] in self?.mouseMoved() }
         container.addSubview(drag)
         panel.contentView = container
@@ -190,7 +199,10 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         guard pageReady else { pendingState = s; return }
         currentState = s
         lastEvent = Date()
+        sofaOptOut = false
         js("carita.set('\(s)')")
+        // su sesión hace algo: se levanta del sofá (si te necesita, va directo a buscarte)
+        if seated || goingToSofa { leaveSofa(returning: s != "asking") }
         if s == "asking" {
             goFindUser()
         } else if homeOrigin != nil {
@@ -368,17 +380,22 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     // MARK: ir a buscarte
 
     func goFindUser() {
-        guard let app = app, app.seeksYou, !app.quiet, homeOrigin == nil, !app.userIsLookingAtTerminal() else { return }
+        let home = sofaHome
+        sofaHome = nil
         let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) else { return }
         let f = panel.frame
-        if hypot(mouse.x - f.midX, mouse.y - f.midY) < 220 { return }   // ya estás cerca
+        guard let app = app, app.seeksYou, !app.quiet, homeOrigin == nil, !app.userIsLookingAtTerminal(),
+              let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }),
+              hypot(mouse.x - f.midX, mouse.y - f.midY) >= 220 else {   // (o ya estás cerca)
+            if let h = home { travel(to: h) }   // venía del sofá: a su sitio
+            return
+        }
         let v = screen.visibleFrame
         var target = NSPoint(x: mouse.x + 30, y: mouse.y - f.height - 30)
         if target.y < v.minY { target.y = mouse.y + 30 }
         target.x = min(max(target.x, v.minX), v.maxX - f.width)
         target.y = min(max(target.y, v.minY), v.maxY - f.height)
-        homeOrigin = f.origin
+        homeOrigin = home ?? f.origin
         travel(to: target)
     }
 
@@ -388,8 +405,9 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         travel(to: home)
     }
 
-    func travel(to target: NSPoint) {
+    func travel(to target: NSPoint, then arrive: (() -> Void)? = nil) {
         stopTravel()
+        onArrive = arrive
         travelStart = panel.frame.origin
         travelTarget = target
         travelBegan = Date()
@@ -404,6 +422,7 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         guard travelTimer != nil else { return }
         travelTimer?.invalidate()
         travelTimer = nil
+        onArrive = nil
         js("carita.travel(0)")
     }
 
@@ -412,6 +431,62 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let e = CGFloat(p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2)
         panel.setFrameOrigin(NSPoint(x: travelStart.x + (travelTarget.x - travelStart.x) * e,
                                      y: travelStart.y + (travelTarget.y - travelStart.y) * e))
-        if p >= 1 { stopTravel() }
+        if p >= 1 {
+            let arrive = onArrive
+            stopTravel()
+            arrive?()
+        }
+    }
+
+    // MARK: el sofá
+
+    /// Va andando a su plaza y se sienta.
+    func goSit(at seat: NSPoint) {
+        if !seated && !goingToSofa { preSofaOrigin = panel.frame.origin }
+        if seated && panel.frame.origin == seat { return }
+        goingToSofa = true
+        if seated {
+            panel.setFrameOrigin(seat)   // el sofá ha cambiado de tamaño: se recoloca sin más
+            goingToSofa = false
+            return
+        }
+        travel(to: seat) { [weak self] in
+            guard let self = self else { return }
+            self.goingToSofa = false
+            self.seated = true
+            self.js("carita.sit(true)")
+            self.app?.arrangeSofa()
+        }
+    }
+
+    /// Se levanta: vuelve a donde estaba (o se queda listo para ir a buscarte).
+    func leaveSofa(returning: Bool) {
+        let home = preSofaOrigin
+        seated = false
+        goingToSofa = false
+        preSofaOrigin = nil
+        stopTravel()
+        js("carita.sit(false)")
+        if returning, let h = home { travel(to: h) } else { sofaHome = home }
+        app?.arrangeSofa()
+    }
+
+    func dragStarted() {
+        dragging = true
+        stopTravel()
+        if seated || goingToSofa {
+            // lo sacas tú del sofá: se queda donde lo sueltes
+            seated = false
+            goingToSofa = false
+            preSofaOrigin = nil
+            sofaOptOut = true
+            js("carita.sit(false)")
+            app?.arrangeSofa()
+        }
+    }
+
+    func dragEnded() {
+        dragging = false
+        homeOrigin = nil   // si lo sueltas en otro sitio, se queda ahí
     }
 }

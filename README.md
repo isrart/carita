@@ -24,6 +24,10 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 
 Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
 
+### El sofá
+
+Para que varios bichos parados no parezcan «un frutero lleno de naranjas»: cuando hay dos o más y llevan un minuto sin novedades, se van andando a un sofá y se sientan juntos (si se duermen, se apoyan en el de al lado). Cuando la sesión de uno hace algo, ese se levanta y se pone delante a trabajar; al acabar, vuelve a su plaza. Si sacas a uno del sofá arrastrándolo, se queda donde lo sueltes hasta que su sesión vuelva a hacer algo.
+
 ## Disfraces según el proyecto
 
 En cualquier cosa de Bajovelo lleva la boina granate, y en la mano algo según el subproyecto. Lo deduce del nombre de la carpeta:
