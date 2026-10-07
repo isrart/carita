@@ -487,12 +487,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ("Investigando", "browsing"), ("Delegando", "delegating"), ("Te necesita", "asking"),
         ("¡Hecho!", "done"), ("Descanso", "stretch"), ("Aburrido", "sleepy"), ("Dormido", "sleeping"),
     ]
-    let costumes: [(String, String)] = [
-        ("Automático (según el proyecto)", "auto"), ("Sin disfraz", "none"),
-        ("Bajovelo (boina y copa)", "vino"), ("Blog (pluma y cuaderno)", "vinoblog"),
-        ("Recursos (guía de vino)", "vinorecursos"), ("Trivia (cartel ?)", "vinotrivia"),
-        ("Reels (móvil grabando)", "vinoreels"),
-    ]
 
     let store = ConfigStore()
     let settingsWindow = SettingsWindow()
@@ -1218,43 +1212,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menu.addItem(.separator())
 
-        addSubmenu(menu, "Tamaño",
-                   [("Pequeño", 0.75), ("Normal", 1.0), ("Grande", 1.4)].map { ($0.0, $0.1 as Any, abs(Double(scale) - $0.1) < 0.01) },
-                   #selector(setSize(_:)))
-        addSubmenu(menu, "Disfraz", costumes.map { ($0.0, $0.1 as Any, costumeChoice == $0.1) }, #selector(setCostume(_:)))
-        menu.addItem(.separator())
-        addToggle(menu, "Leer mis respuestas en voz alta", readAloud, #selector(toggleRead))
-        addToggle(menu, "Avisos con voz (¡Hecho!, te necesito…)", talks, #selector(toggleTalk))
-        addToggle(menu, "Ir a buscarme cuando me necesita", seeksYou, #selector(toggleSeek))
-        let dnd = NSMenuItem(title: "No molestar automático", action: nil, keyEquivalent: "")
-        let dndMenu = NSMenu()
-        dndMenu.autoenablesItems = false
-        addToggle(dndMenu, "Al encender la cámara (videollamadas)", dndCamera, #selector(toggleDndCamera))
-        addToggle(dndMenu, "Al compartir pantalla (Zoom, Compartir pantalla, pantalla duplicada)", dndScreen, #selector(toggleDndScreen))
-        dndMenu.addItem(.separator())
-        let now = NSMenuItem(title: "Ahora: " + [interruptions.camera ? "cámara encendida" : "cámara apagada",
-                                                  interruptions.sharing ?? "sin compartir pantalla"].joined(separator: ", "),
-                             action: nil, keyEquivalent: "")
-        now.isEnabled = false
-        dndMenu.addItem(now)
-        dnd.submenu = dndMenu
-        menu.addItem(dnd)
-        addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
-        menu.addItem(.separator())
         let game = NSMenuItem(title: "Jugar al escondite", action: #selector(playHideAndSeek(_:)), keyEquivalent: "")
         game.target = self
         game.representedObject = creature
         menu.addItem(game)
-        addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
-        let check = NSMenuItem(title: "Buscar actualizaciones…", action: #selector(checkUpdates), keyEquivalent: "")
-        check.target = self
-        menu.addItem(check)
-        let stats = NSMenuItem(title: "Estadísticas…", action: #selector(openStats), keyEquivalent: "")
-        stats.target = self
-        menu.addItem(stats)
-        let diagnostics = NSMenuItem(title: "Diagnóstico…", action: #selector(openDiagnostics), keyEquivalent: "")
-        diagnostics.target = self
-        menu.addItem(diagnostics)
+        menu.addItem(.separator())
+
+        // lo que no es del día a día (los interruptores de antes están en Ajustes)
+        let more = NSMenuItem(title: "Más", action: nil, keyEquivalent: "")
+        let moreMenu = NSMenu()
+        moreMenu.autoenablesItems = false
+        addSubmenu(moreMenu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        for (title, action) in [("Estadísticas…", #selector(openStats)), ("Diagnóstico…", #selector(openDiagnostics)),
+                                ("Buscar actualizaciones…", #selector(checkUpdates))] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            moreMenu.addItem(item)
+        }
+        more.submenu = moreMenu
+        menu.addItem(more)
         let settings = NSMenuItem(title: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
@@ -1306,8 +1282,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
-    @objc func toggleDndCamera() { store.c.noMolestarCamara.toggle() }
-    @objc func toggleDndScreen() { store.c.noMolestarPantalla.toggle() }
     @objc func toggleHidden() { store.c.oculta.toggle() }
 
     /// Enseña o esconde los bichos (y sus bocadillos) según `away`.
@@ -1347,23 +1321,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
-    @objc func setSize(_ sender: NSMenuItem) {
-        guard let value = sender.representedObject as? Double else { return }
-        store.c.tamano = value
-    }
 
     func goHomeAll() {
         for c in creatures { c.goHome() }
     }
 
-    @objc func setCostume(_ sender: NSMenuItem) {
-        guard let value = sender.representedObject as? String else { return }
-        store.c.disfraz = value
-    }
 
-    @objc func toggleTalk() { store.c.avisosVoz.toggle() }
-    @objc func toggleRead() { store.c.leerRespuestas.toggle() }
-    @objc func toggleSeek() { store.c.irABuscarte.toggle() }
 
     /// Si los scripts de ~/.carita no son los de esta versión de la app, los cambia solos.
     /// Solo si ya estaban instalados: instalar hooks es cosa de install.sh o del diagnóstico.
@@ -1521,15 +1484,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshMenu()
     }
 
-    @objc func toggleLogin() {
-        let service = SMAppService.mainApp
-        do {
-            if service.status == .enabled { try service.unregister() } else { try service.register() }
-        } catch {
-            NSSound.beep()
-        }
-        refreshMenu()
-    }
 
     @objc func test(_ sender: NSMenuItem) {
         guard let state = sender.representedObject as? String else { return }
