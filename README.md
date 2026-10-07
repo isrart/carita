@@ -1,8 +1,14 @@
 # Carita
 
-> Para desarrollo: `CLAUDE.md` explica cómo está montada y `ROADMAP.md` lista las próximas mejoras.
+<p align="center"><img src="docs/img/caritas.png" alt="Las cinco Caritas: redondita con boina y copa de vino, mandarina con flor, alubia alta, gotita y pelusita" width="760"></p>
 
-Un bichito que flota encima de todo en tu Mac y pone cara a lo que hace Claude Code en la terminal.
+Un bichito que flota encima de todo en tu Mac y pone cara a lo que hace Claude Code en la terminal. Te lee las respuestas, puedes hablarle, se disfraza según el proyecto y, cuando hay varios sin nada que hacer, se sientan juntos en un sofá.
+
+**[⬇️ Descargar la última versión](https://github.com/isrart/carita/releases/latest)** · macOS 13 o superior · todo se queda en tu Mac
+
+> Para desarrollo: `CLAUDE.md` explica cómo está montada y `ROADMAP.md` lista las mejoras que ya se hicieron.
+
+<p align="center"><img src="docs/img/estados.png" alt="Carita pensando, leyendo, escribiendo, ejecutando, desplegando con cava, celebrando, pidiendo ayuda, escuchando y durmiendo" width="560"></p>
 
 | Claude Code está…            | Carita…                                   |
 |------------------------------|-------------------------------------------|
@@ -22,6 +28,8 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 
 ## Sorpresas (para jugar con el ratón)
 
+<p align="center"><img src="docs/img/sorpresas.png" alt="Ataque de cosquillas, mareo, susto al borde de la pantalla, hambre y escondite" width="760"></p>
+
 - **Ataque de cosquillas**: 8 clics rápidos y se cae de espaldas pataleando de risa.
 - **Mareo**: zarandéalo arrastrándolo de lado a lado y se le ponen los ojos en espiral.
 - **«¡Que me caigo!»**: llévalo al borde de la pantalla y se agarra asustado.
@@ -29,6 +37,8 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 - **Escondite**: clic derecho → «Jugar al escondite». Cuenta, desaparece y se asoma por un borde de la pantalla; si lo pillas con un clic te dice cuánto has tardado. Si tardas mucho, da pistas, y a los dos minutos sale él: «¡Gané yo!».
 
 ## Días y horas especiales
+
+<p align="center"><img src="docs/img/dias.png" alt="Gorro de cumpleaños, de Papá Noel con nieve, corona de Reyes, fantasma de Halloween, gorro de dormir y taza de café" width="760"></p>
 
 - **Cumpleaños**: en Ajustes → Cumpleaños apuntas nombres y fechas. Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).
 - **Navidad** (22–26 de diciembre): gorro de Papá Noel y nieve. **Nochevieja**: gorro de fiesta. **Reyes** (5 y 6 de enero): corona. **Halloween**: de fantasma. **Carnaval**: un disfraz distinto cada hora.
@@ -40,6 +50,8 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo: el que le pongas con `/rename` en Claude Code o, si no, el de la carpeta. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
 
 ### El sofá
+
+<p align="center"><img src="docs/img/sofa.png" alt="Tres bichos sentados juntos en un sofá verde: uno despierto, otro dormido y otro bostezando" width="520"></p>
 
 Para que varios bichos parados no parezcan «un frutero lleno de naranjas»: cuando hay dos o más y llevan un minuto sin novedades, se van andando a un sofá y se sientan juntos (si se duermen, se apoyan en el de al lado). Cuando la sesión de uno hace algo, ese se levanta y se pone delante a trabajar; al acabar, vuelve a su plaza. Si sacas a uno del sofá arrastrándolo, se queda donde lo sueltes hasta que su sesión vuelva a hacer algo.
 
@@ -185,6 +197,8 @@ Claude Code ──hook──▶ ~/.carita/hook.sh <estado> ──▶ ~/.carita/s
 Los hooks solo escriben una palabra en un archivo. `carita.py` elige el disfraz, detecta los deploys y, al terminar, saca la última respuesta de la conversación y deja el resumen en `~/.carita/say`. La app vigila esa carpeta (sin consultarla en bucle) y cambia la cara al momento. Cuando se duerme, para todas las animaciones para no gastar batería. Nada sale de tu Mac.
 
 ## Ajustes
+
+<p align="center"><img src="docs/img/ajustes.png" alt="Ventana de Ajustes de Carita con las pestañas General, Voz, Descanso, Disfraces, Cumpleaños, No molestar y Atajos" width="480"></p>
 
 Menú → **Ajustes…** (`⌘,` con el menú abierto). Todo se aplica al momento, sin reiniciar:
 
