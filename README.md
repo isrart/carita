@@ -22,7 +22,7 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 
 ## Un bicho por sesión
 
-Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
+Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo: el que le pongas con `/rename` en Claude Code o, si no, el de la carpeta. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
 
 ### El sofá
 

@@ -718,7 +718,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkFiles()
         mouseMoved()
         sweepSessions()
+        refreshSessionNames()
         sofaTick()
+    }
+
+    /// Claude Code apunta cada sesión abierta en ~/.claude/sessions/<pid>.json, con el nombre que le
+    /// pongas con /rename («nameSource»: «user»). Si lo has renombrado, el bicho usa ese nombre.
+    let claudeSessionsDir = (NSHomeDirectory() as NSString).appendingPathComponent(".claude/sessions")
+    var sessionNameCache: [String: (mtime: Date, sid: String, name: String?)] = [:]
+    func refreshSessionNames() {
+        guard creatures.contains(where: { $0.sessionID != nil }) else { return }
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: claudeSessionsDir)) ?? []).filter { $0.hasSuffix(".json") }
+        var names: [String: String] = [:]
+        for f in files {
+            let path = (claudeSessionsDir as NSString).appendingPathComponent(f)
+            guard let m = modDate(path) else { continue }
+            if let cached = sessionNameCache[f], cached.mtime == m {
+                if let n = cached.name { names[cached.sid] = n }
+                continue
+            }
+            guard let data = FileManager.default.contents(atPath: path),
+                  let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let sid = obj["sessionId"] as? String else { continue }
+            // («… [Claude]» lo añade la app de escritorio: en la etiqueta sobra)
+            let name = (obj["nameSource"] as? String) == "user"
+                ? (obj["name"] as? String)?.replacingOccurrences(of: #"\s*\[Claude\]$"#, with: "", options: .regularExpression)
+                : nil
+            sessionNameCache[f] = (m, sid, name)
+            if let n = name { names[sid] = n }
+        }
+        sessionNameCache = sessionNameCache.filter { files.contains($0.key) }
+        var changed = false
+        for c in creatures where c.sessionID != nil {
+            let n = names[c.sessionID!]
+            if n != c.customName { c.customName = n; changed = true }
+        }
+        if changed { updateLabels() }
     }
 
     // MARK: el sofá

@@ -69,7 +69,9 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     var travelBegan = Date()
     var travelDuration: TimeInterval = 1
 
-    var name: String { info.proyecto.isEmpty ? "carita" : info.proyecto }
+    /// El nombre que le pusiste a la sesión con /rename (si lo hay).
+    var customName: String?
+    var name: String { customName ?? (info.proyecto.isEmpty ? "carita" : info.proyecto) }
 
     init(app: AppDelegate, origin: NSPoint?) {
         self.app = app
