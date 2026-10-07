@@ -18,6 +18,7 @@ Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebV
 |---|---|
 | `main.swift` | La app (AppKit, sin Xcode). Panel flotante transparente con un `WKWebView`, capa `DragView` para arrastrar y hacer clic, bocadillo nativo (`BubbleView` en su propio panel), voz (`AVSpeechSynthesizer`), viaje hasta el ratón, menú contextual. |
 | `Creature.swift` | Un bicho: su panel, su cara (`WKWebView`), su bocadillo, su viaje, la mirada y la sesión que representa (`SessionInfo` de `<id>.info`: carpeta, proyecto, disfraz, tty y app de terminal). `AppDelegate` reparte las sesiones (`adopt`, `retire`, como mucho 4). |
+| `Voice.swift` | Hablarle: `Listener` (micrófono + `SFSpeechRecognizer` es-ES en el Mac, resultados parciales) y `Typist` (trae al frente la pestaña de Terminal por su tty con AppleScript, pega con ⌘V simulado —necesita Accesibilidad— y devuelve el portapapeles). El atajo usa pulsar y soltar de Carbon (`HotKeys`, id 3). |
 | `Settings.swift` | `Config` (`~/.carita/config.json`, única fuente de verdad; migra lo que había en `UserDefaults`), `ConfigStore` (guarda y recarga si se edita a mano) y la ventana de Ajustes en SwiftUI. |
 | `Diagnostics.swift` | Ventana de diagnóstico (semáforos, reinstalar hooks, probar, copiar informe) y `Scripts`: copia `hook.sh`/`carita.py` de la app a `~/.carita` (también al arrancar si no coinciden). |
 | `Stats.swift` | Historial (`~/.carita/historial.jsonl`, rotación a `historial-resumen.json`) y ventana de estadísticas con Swift Charts. |
@@ -45,7 +46,7 @@ Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebV
 - **Solo el bicho recibe clics:** el panel cambia `ignoresMouseEvents` según el ratón esté o no sobre el cuerpo. No romperlo con ventanas nuevas.
 - **Nada sale del Mac** salvo lo que se pida explícitamente (p. ej., buscar actualizaciones).
 - **Ajustes solo en `config.json`**, nunca en `UserDefaults` (salvo la posición de la ventana, que guarda AppKit). Cualquier cambio pasa por `store.c` y se aplica en `configChanged(from:)`.
-- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Creature.swift`, `Settings.swift`, `Diagnostics.swift`, `Stats.swift` y `Updater.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
+- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Creature.swift`, `Voice.swift`, `Settings.swift`, `Diagnostics.swift`, `Stats.swift` y `Updater.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
 
 ## Cómo probar
 

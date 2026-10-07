@@ -61,6 +61,15 @@ También se esconde si compartes pantalla con Zoom, si alguien está viendo tu M
 
 Se configura en el menú → «No molestar automático», donde también ves qué detecta ahora mismo.
 
+## Háblale
+
+**Mantén pulsado `⌃⌥⌘Espacio`** mientras hablas, como un walkie-talkie. El bicho de la sesión que estuvo activa la última se lleva la mano a la oreja y va escribiendo en su bocadillo lo que entiende. Al soltar, trae al frente la terminal de esa sesión y **deja el texto escrito, sin pulsar Intro**: lo revisas y lo envías tú.
+
+- El reconocimiento es en español de España y **en tu Mac, sin internet**.
+- La primera vez pide permiso para el **micrófono** y el **reconocimiento de voz**. Para que escriba ella en la terminal necesita además **Accesibilidad** (Ajustes del Sistema → Privacidad y seguridad → Accesibilidad → Carita). Sin ese permiso, te deja el texto copiado y te dice que lo pegues con `⌘V`.
+- En Terminal elige la pestaña exacta de la sesión (te pedirá permiso de Automatización una vez). En otras terminales (Warp, iTerm…) trae la app al frente y pega donde estés.
+- El atajo se cambia en Ajustes → Atajos.
+
 ## Te lee las respuestas
 
 Cuando termino de responder, Carita te dice en voz alta la idea general (las primeras frases, sin código, tablas ni rutas largas) y pone la frase principal en el bocadillo, moviendo la boca mientras habla.

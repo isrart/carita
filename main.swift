@@ -77,6 +77,7 @@ struct Shortcut: Equatable {
 
     static let toggleDefault = Shortcut(keyCode: UInt32(kVK_ANSI_C), modifiers: UInt32(controlKey | optionKey | cmdKey))
     static let muteDefault = Shortcut(keyCode: UInt32(kVK_ANSI_M), modifiers: UInt32(controlKey | optionKey | cmdKey))
+    static let talkDefault = Shortcut(keyCode: UInt32(kVK_Space), modifiers: UInt32(controlKey | optionKey | cmdKey))
 
     init(keyCode: UInt32, modifiers: UInt32) {
         self.keyCode = keyCode
@@ -162,25 +163,28 @@ struct Shortcut: Equatable {
 final class HotKeys {
     private var refs: [UInt32: EventHotKeyRef] = [:]
     private var actions: [UInt32: () -> Void] = [:]
+    private var releases: [UInt32: () -> Void] = [:]
 
     init() {
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var specs = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+                     EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
         InstallEventHandler(GetApplicationEventTarget(), { _, event, userData in
             var hk = EventHotKeyID()
             GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                               nil, MemoryLayout<EventHotKeyID>.size, nil, &hk)
-            if let userData = userData {
-                Unmanaged<HotKeys>.fromOpaque(userData).takeUnretainedValue().fire(hk.id)
+            if let userData = userData, let event = event {
+                let released = GetEventKind(event) == UInt32(kEventHotKeyReleased)
+                Unmanaged<HotKeys>.fromOpaque(userData).takeUnretainedValue().fire(hk.id, released: released)
             }
             return noErr
-        }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), nil)
+        }, 2, &specs, Unmanaged.passUnretained(self).toOpaque(), nil)
     }
 
-    private func fire(_ id: UInt32) { actions[id]?() }
+    private func fire(_ id: UInt32, released: Bool) { (released ? releases[id] : actions[id])?() }
 
     /// Devuelve false si la combinación ya la usa macOS (o no se pudo registrar).
     @discardableResult
-    func register(_ id: UInt32, _ shortcut: Shortcut?, action: @escaping () -> Void) -> Bool {
+    func register(_ id: UInt32, _ shortcut: Shortcut?, action: @escaping () -> Void, release: (() -> Void)? = nil) -> Bool {
         unregister(id)
         guard let shortcut = shortcut else { return true }
         if shortcut.clashesWithSystem { return false }
@@ -190,12 +194,14 @@ final class HotKeys {
         guard status == noErr, let r = ref else { return false }
         refs[id] = r
         actions[id] = action
+        releases[id] = release
         return true
     }
 
     func unregister(_ id: UInt32) {
         if let r = refs.removeValue(forKey: id) { UnregisterEventHotKey(r) }
         actions[id] = nil
+        releases[id] = nil
     }
 }
 
@@ -492,6 +498,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let statsWindow = StatsWindow()
     let updater = Updater()
     var updateTimer: Timer?
+    let listener = Listener()
+    let typist = Typist()
+    /// El bicho que te está escuchando (mientras mantienes el atajo de hablar).
+    weak var listening: Creature?
     var lastArrival: (state: String, at: Date)?
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
     var cfg: Config { store.c }
@@ -521,6 +531,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Atajos guardados; nil = desactivado.
     var toggleShortcut: Shortcut? { Shortcut(array: cfg.atajoMostrar) }
     var muteShortcut: Shortcut? { Shortcut(array: cfg.atajoCallar) }
+    var talkShortcut: Shortcut? { Shortcut(array: cfg.atajoHablar) }
     /// Por qué está en «no molestar» ahora mismo (nil si no lo está).
     var dndReason: String? {
         if dndCamera && interruptions.camera { return "cámara encendida" }
@@ -582,6 +593,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wasAway = away
         registerHotKeys()
         updater.onMessage = { [weak self] text in self?.notice(text) }
+        listener.onText = { [weak self] text in self?.heard(text) }
+        listener.onDone = { [weak self] text in self?.heardAll(text) }
+        listener.onProblem = { [weak self] text in self?.listenProblem(text) }
+        typist.onMessage = { [weak self] text in self?.typedMessage(text) }
         updater.onAvailable = { [weak self] _ in self?.refreshMenu() }
         updateTimer = Timer.scheduledTimer(timeInterval: 3600, target: self, selector: #selector(dailyUpdateCheck),
                                            userInfo: nil, repeats: true)
@@ -927,6 +942,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if talks, Date().timeIntervalSince(lastReplyAt) > 4, !text.isEmpty { speak(text, interrupt: true, by: c) }
     }
 
+    // MARK: hablarle
+
+    /// A quién le hablas: al bicho de la sesión que tuvo actividad la última.
+    func listenTarget() -> Creature? {
+        let alive = creatures.filter { !$0.leaving }
+        return alive.filter { $0.sessionID != nil }.max { $0.lastEvent < $1.lastEvent } ?? alive.first
+    }
+
+    func talkPressed() {
+        guard !away, listening == nil, let c = listenTarget() else { return }
+        if speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
+        listening = c
+        c.js("carita.listen(true)")
+        c.showBubble("Te escucho…", force: true)
+        listener.start()
+    }
+
+    func talkReleased() {
+        guard listening != nil else { return }
+        listener.stop()
+    }
+
+    func heard(_ text: String) {
+        guard let c = listening, !text.isEmpty else { return }
+        c.showBubble(text, force: true)
+    }
+
+    func heardAll(_ text: String) {
+        guard let c = listening else { return }
+        listening = nil
+        c.js("carita.listen(false)")
+        guard !text.isEmpty else {
+            c.notice("No te he oído nada")
+            return
+        }
+        debugLog("\(c.name): oído «\(text)»")
+        c.showBubble(text, force: true)
+        typedTo = c
+        typist.type(text, term: termBundle(for: c), tty: c.info.tty)
+    }
+
+    func listenProblem(_ text: String) {
+        let c = listening ?? listenTarget()
+        listening = nil
+        c?.js("carita.listen(false)")
+        c?.notice(text)
+    }
+
+    weak var typedTo: Creature?
+    func typedMessage(_ text: String) {
+        (typedTo ?? primary).notice(text)
+    }
+
     /// Avisos de la app: los dice el primer bicho.
     func notice(_ text: String) {
         guard let first = creatures.first else { return }
@@ -1030,6 +1098,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             addToggle(menu, "Silenciar 1 hora", false, #selector(toggleMute))
         }
         setKey(menu.items.last!, muteShortcut)
+        if let talk = talkShortcut {
+            let hint = NSMenuItem(title: "Para hablarle, mantén \(talk.display)", action: nil, keyEquivalent: "")
+            hint.isEnabled = false
+            menu.addItem(hint)
+        }
         menu.addItem(.separator())
 
         addSubmenu(menu, "Tamaño",
@@ -1095,6 +1168,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if !hotKeys.register(2, muteShortcut, action: { [weak self] in self?.toggleMute() }) {
             clash.append(muteShortcut!.display)
+        }
+        if !hotKeys.register(3, talkShortcut, action: { [weak self] in self?.talkPressed() },
+                             release: { [weak self] in self?.talkReleased() }) {
+            clash.append(talkShortcut!.display)
         }
         if !clash.isEmpty {
             debugLog("atajo ocupado: " + clash.joined(separator: " "))
@@ -1214,7 +1291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             },
             pauseHotKeys: { [weak self] paused in
                 guard let self = self else { return }
-                if paused { self.hotKeys.unregister(1); self.hotKeys.unregister(2) } else { self.registerHotKeys(announce: false) }
+                if paused { for id: UInt32 in 1...3 { self.hotKeys.unregister(id) } } else { self.registerHotKeys(announce: false) }
             },
             editPhrases: { [weak self] in self?.editPhrases() }))
     }
@@ -1301,7 +1378,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if muted { goHomeAll() }
             scheduleUnmute()
         }
-        if c.atajoMostrar != old.atajoMostrar || c.atajoCallar != old.atajoCallar { registerHotKeys() }
+        if c.atajoMostrar != old.atajoMostrar || c.atajoCallar != old.atajoCallar || c.atajoHablar != old.atajoHablar { registerHotKeys() }
         if c.irABuscarte != old.irABuscarte && !c.irABuscarte { goHomeAll() }
         if c.avisosVoz != old.avisosVoz && c.avisosVoz { speak("¡Vale! Te aviso con voz", interrupt: true) }
         if c.leerRespuestas != old.leerRespuestas {

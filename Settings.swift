@@ -34,6 +34,7 @@ struct Config: Codable, Equatable {
     var noMolestarPantalla = true
     var atajoMostrar = Shortcut.toggleDefault.array   // [] = sin atajo
     var atajoCallar = Shortcut.muteDefault.array
+    var atajoHablar = Shortcut.talkDefault.array
     var buscarActualizaciones = true   // una vez al día, en silencio
     var ultimaComprobacion: Double?
     var oculta = false
@@ -51,7 +52,7 @@ struct Config: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
-        case atajoMostrar, atajoCallar, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
+        case atajoMostrar, atajoCallar, atajoHablar, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
     }
 
     init() {}
@@ -78,6 +79,7 @@ struct Config: Codable, Equatable {
         noMolestarPantalla = v(.noMolestarPantalla, d.noMolestarPantalla)
         atajoMostrar = v(.atajoMostrar, d.atajoMostrar)
         atajoCallar = v(.atajoCallar, d.atajoCallar)
+        atajoHablar = v(.atajoHablar, d.atajoHablar)
         oculta = v(.oculta, d.oculta)
         buscarActualizaciones = v(.buscarActualizaciones, d.buscarActualizaciones)
         ultimaComprobacion = try? c.decode(Double.self, forKey: .ultimaComprobacion)
@@ -460,8 +462,10 @@ struct ShortcutTab: View {
                                  fallback: Shortcut.toggleDefault, actions: actions)
                 ShortcutRecorder(title: "Callarla (y silenciar 1 hora)", value: $store.c.atajoCallar, other: store.c.atajoMostrar,
                                  fallback: Shortcut.muteDefault, actions: actions)
+                ShortcutRecorder(title: "Hablarle (mantenlo pulsado)", value: $store.c.atajoHablar, other: store.c.atajoCallar,
+                                 fallback: Shortcut.talkDefault, actions: actions)
             } footer: {
-                Hint("Funcionan con cualquier app delante y no piden permisos. Haz clic en el atajo y pulsa la combinación nueva (con ⌘, ⌥ o ⌃); Esc cancela.")
+                Hint("Para hablarle, mantén pulsado su atajo mientras hablas: lo que digas se escribe en la terminal de la sesión que estuvo activa la última, sin pulsar Intro. Funcionan con cualquier app delante. Haz clic en el atajo y pulsa la combinación nueva (con ⌘, ⌥ o ⌃); Esc cancela.")
             }
         }
         .formStyle(.grouped)

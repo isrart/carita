@@ -16,7 +16,7 @@ APP="build/Carita.app"
 
 echo "🔨 Compilando Carita $VERSION ($BUILD_NUMBER)…"
 mkdir -p build
-swiftc -O -swift-version 5 main.swift Creature.swift Settings.swift Diagnostics.swift Stats.swift Updater.swift -o build/Carita
+swiftc -O -swift-version 5 main.swift Creature.swift Voice.swift Settings.swift Diagnostics.swift Stats.swift Updater.swift -o build/Carita
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -46,6 +46,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>Para oírte cuando mantienes el atajo de hablar.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Para entender lo que le dices (en tu Mac, sin internet) y escribirlo en la terminal.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Para traer al frente la pestaña de Terminal de cada sesión de Claude Code.</string>
 </dict>
 </plist>
 PLIST
