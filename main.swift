@@ -764,7 +764,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// que se quedó colgado). Los que te necesitan, viajan o arrastras no cuentan.
     func isResting(_ c: Creature) -> Bool {
         let rest: Set<String> = ["idle", "done", "hello", "shipped", "sleepy", "sleeping", "bye"]
-        guard !c.leaving, !c.sofaOptOut, !c.dragging, c.currentState != "asking", listening !== c,
+        guard !c.leaving, !c.sofaOptOut, !c.dragging, !c.hiding, c.currentState != "asking", listening !== c,
               c.homeOrigin == nil else { return false }
         let idleFor = Date().timeIntervalSince(c.lastEvent)
         return rest.contains(c.currentState) ? idleFor >= 60 : idleFor >= 240
@@ -950,6 +950,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             c = Creature(app: self, origin: spawnOrigin())
             creatures.append(c)
             if !away { c.panel.orderFrontRegardless() }
+            c.drag.menu = buildMenu(for: c)
         }
         c.sessionID = sid
         c.lastInfoMTime = nil
@@ -1164,8 +1165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(parent)
     }
 
-    /// El mismo menú para la barra de menús y para el clic derecho sobre el bicho.
-    func buildMenu() -> NSMenu {
+    /// El mismo menú para la barra de menús y para el clic derecho sobre el bicho
+    /// (`creature`: el bicho del clic derecho; las opciones de juego van con él).
+    func buildMenu(for creature: Creature? = nil) -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
@@ -1222,6 +1224,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(dnd)
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
+        let game = NSMenuItem(title: "Jugar al escondite", action: #selector(playHideAndSeek(_:)), keyEquivalent: "")
+        game.target = self
+        game.representedObject = creature
+        menu.addItem(game)
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
         let check = NSMenuItem(title: "Buscar actualizaciones…", action: #selector(checkUpdates), keyEquivalent: "")
         check.target = self
@@ -1249,7 +1255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func refreshMenu() {
-        for c in creatures { c.drag.menu = buildMenu() }
+        for c in creatures { c.drag.menu = buildMenu(for: c) }
         statusItem.menu = buildMenu()
     }
 
@@ -1292,7 +1298,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wasAway = away
         if away { speech.stopSpeaking(at: .immediate) }
         for c in creatures where !c.leaving { c.applyVisibility(away) }
-        if away { sofa.hide() } else { sofaTick() }
+        if away {
+            sofa.hide()
+            for c in creatures where c.hiding { c.endGame(message: nil) }
+        } else { sofaTick() }
     }
 
     @objc func toggleMute() {
@@ -1506,6 +1515,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func test(_ sender: NSMenuItem) {
         guard let state = sender.representedObject as? String else { return }
         for c in creatures where !c.leaving { c.js("carita.set('\(state)')") }
+    }
+
+    @objc func playHideAndSeek(_ sender: NSMenuItem) {
+        let c = (sender.representedObject as? Creature) ?? creatures.first { !$0.leaving }
+        c?.playHideAndSeek()
     }
 
     @objc func quit() { NSApp.terminate(nil) }

@@ -101,7 +101,7 @@ html.app .bubble{display:none}
 #c[data-s="thinking"] .dots,
 #c[data-s="sleepy"] .lids,
 #c[data-s="sleeping"] .zzz,#c[data-s="sleeping"] .snot,
-#c[data-s="done"] .confetti{opacity:1}
+#c[data-s="done"] .confetti,#c.found .confetti{opacity:1}
 
 /* ambient motion */
 .sprout{transform-box:view-box!important;transform-origin:100px 68px!important;animation:sway 3.2s ease-in-out infinite}
@@ -174,7 +174,7 @@ html.app .bubble{display:none}
 #c[data-s="delegating"] .mini-r{animation:bob .6s ease-in-out .3s infinite alternate}
 @keyframes bob{to{transform:translateY(-8px)}}
 .confetti rect{opacity:0}
-#c[data-s="done"] .confetti rect{animation:burst 1.4s cubic-bezier(.1,.7,.3,1) forwards}
+#c[data-s="done"] .confetti rect,#c.found .confetti rect{animation:burst 1.4s cubic-bezier(.1,.7,.3,1) forwards}
 @keyframes burst{0%{opacity:1;transform:translate(0,0) scale(.2)}70%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(var(--r)) scale(1)}}
 .lids{transition:opacity .3s}
 /* talking: the mouth flaps while the voice plays */
@@ -266,6 +266,12 @@ html.app .bubble{display:none}
 @keyframes gape{from{transform:scale(.5)}to{transform:scale(1.9,1.7)}}
 #c.chomp .mouth{animation:chomp .12s ease-in-out 4 alternate}
 @keyframes chomp{to{transform:scaleY(.2)}}
+
+/* hide and seek: peeking from the edge of the screen, eyes darting around */
+#c.peek .pupil{animation:peekeyes 2.6s ease-in-out infinite!important}
+@keyframes peekeyes{0%,20%{transform:translate(-4.5px,-1px)}35%,60%{transform:translate(4.5px,-1px)}75%,100%{transform:translate(0,2px)}}
+#c.peek .brow{opacity:1;transform:translateY(-4px) rotate(-6deg)}
+#c.peek .shadow{opacity:0}
 
 /* seated on the sofa (several creatures resting): no feet or shadow, the cushion covers them */
 #c.seated .foot,#c.seated .shadow{opacity:0}
@@ -597,6 +603,9 @@ html.app .bubble{display:none}
     chomp: ["¡ÑAM!", "¡Ñam, ñam!"],
     chompJoke: ["Jeje, ¡era broma!", "Tranquilo, que no muerdo… mucho", "Puaj, sabe a plástico"],
     hungryNo: ["¡Uy! Casi te lo como", "¡Eh, vuelve aquí, ratoncito!"],
+    hideCount: ["¡Cuenta hasta diez! Que me escondo…", "¡Escondite! Cierra los ojos y cuenta…", "¡No mires, eh! Uno, dos, tres…"],
+    hideHint: ["Jijiji…", "Frío, frío…", "¡Por aquí no estoy!", "Psst… caliente, caliente…"],
+    hideWin: ["¡Aquí estaba! ¡Gané yo!", "¡Te rindes! Estaba aquí todo el rato"],
     idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
   };
 
@@ -847,6 +856,20 @@ html.app .bubble{display:none}
     }, 3200));
     hungryT.push(setTimeout(() => { svg.classList.remove("chomp"); restoreFace(); say(pick("chompJoke")); }, 4700));
   }
+  // escondite: asomado por un borde, mirando a todos lados
+  function peek(on) {
+    svg.classList.toggle("peek", !!on);
+    wake();
+  }
+  // ¡lo has pillado!
+  function found() {
+    svg.classList.remove("peek");
+    wake();
+    svg.dataset.eyes = "happy"; svg.dataset.mouth = "big";
+    svg.querySelectorAll(".confetti rect").forEach(r => { r.style.animation = "none"; void r.getBBox(); r.style.animation = ""; });
+    svg.classList.add("found");
+    setTimeout(() => { svg.classList.remove("found"); restoreFace(); }, 2600);
+  }
   // sentado en el sofá con los demás bichos
   function sit(on) {
     svg.classList.toggle("seated", !!on);
@@ -878,7 +901,7 @@ html.app .bubble{display:none}
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;
     if ("frases" in c) setFrases(c.frases);
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit, dizzy, edge, hungry,
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit, dizzy, edge, hungry, peek, found, frase: k => pick(k),
     frasesDeSerie: () => FRASES_SERIE};
 
   // fireworks particles

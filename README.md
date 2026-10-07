@@ -26,6 +26,7 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 - **Mareo**: zarandéalo arrastrándolo de lado a lado y se le ponen los ojos en espiral.
 - **«¡Que me caigo!»**: llévalo al borde de la pantalla y se agarra asustado.
 - **Hambre**: deja el puntero quieto encima un rato… y ¡ñam! (es broma).
+- **Escondite**: clic derecho → «Jugar al escondite». Cuenta, desaparece y se asoma por un borde de la pantalla; si lo pillas con un clic te dice cuánto has tardado. Si tardas mucho, da pistas, y a los dos minutos sale él: «¡Gané yo!».
 
 ## Un bicho por sesión
 

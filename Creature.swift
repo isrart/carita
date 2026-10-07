@@ -71,6 +71,12 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     private var hungry = false
     private var lastMouse = NSPoint(x: -1, y: -1)
 
+    // el escondite
+    var hiding = false
+    private var gameHome: NSPoint?
+    private var hideStart: Date?
+    private var gameTimers: [Timer] = []
+
     // viaje hasta ti cuando te necesita
     var homeOrigin: NSPoint?
     var travelTimer: Timer?
@@ -213,6 +219,7 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         currentState = s
         lastEvent = Date()
         sofaOptOut = false
+        if hiding && s == "asking" { endGame(message: nil) }   // te necesitan: se acabó el juego
         js("carita.set('\(s)')")
         // su sesión hace algo: se levanta del sofá (si te necesita, va directo a buscarte)
         if seated || goingToSofa { leaveSofa(returning: s != "asking") }
@@ -232,6 +239,7 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
     func clicked() {
         guard let app = app else { return }
+        if hiding { return gameFound() }
         if app.speech.isSpeaking && app.speaker === self {
             app.speech.stopSpeaking(at: .word)
             js("carita.say('Vale, vale, me callo')")
@@ -469,6 +477,110 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
             let arrive = onArrive
             stopTravel()
             arrive?()
+        }
+    }
+
+    // MARK: el escondite
+
+    private func gameTimer(_ seconds: TimeInterval, _ sel: Selector) {
+        gameTimers.append(Timer.scheduledTimer(timeInterval: seconds, target: self, selector: sel, userInfo: nil, repeats: false))
+    }
+
+    /// Menú → «Jugar al escondite»: cuenta, desaparece y se asoma por un borde de la pantalla.
+    func playHideAndSeek() {
+        guard !hiding, !leaving, app?.away == false else { return }
+        if seated || goingToSofa {
+            gameHome = preSofaOrigin
+            seated = false
+            goingToSofa = false
+            preSofaOrigin = nil
+            js("carita.sit(false)")
+        } else {
+            gameHome = homeOrigin ?? panel.frame.origin
+        }
+        stopTravel()
+        homeOrigin = nil
+        hiding = true
+        js("carita.say(carita.frase('hideCount'))")
+        app?.arrangeSofa()
+        gameTimer(2.5, #selector(gameVanish))
+    }
+
+    @objc private func gameVanish() {
+        showBubble("")
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.35
+            self.panel.animator().alphaValue = 0
+        }
+        gameTimer(3, #selector(gamePeek))
+    }
+
+    /// Un sitio al azar: asomado por abajo, por la izquierda o por la derecha (fuera del Dock y la barra).
+    private func hidingSpot() -> NSPoint {
+        let screen = panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? panel.frame
+        let s = panel.frame.width / VB_W
+        let top = { (vy: CGFloat, edgeY: CGFloat) -> CGFloat in edgeY + (vy - VB_Y) * s - self.panel.frame.height }
+        let randomY = CGFloat.random(in: screen.minY + 40 ... max(screen.minY + 41, screen.maxY - 260 * s))
+        let randomX = CGFloat.random(in: screen.minX + 40 ... max(screen.minX + 41, screen.maxX - 280 * s))
+        switch Int.random(in: 0..<3) {
+        case 0:   // por abajo: solo la cabeza y los ojos (hasta la y 128 del dibujo)
+            return NSPoint(x: randomX, y: top(128, screen.minY))
+        case 1:   // por la izquierda: de x = 62 del dibujo hacia la derecha
+            return NSPoint(x: screen.minX - (62 - VB_X) * s, y: randomY)
+        default:  // por la derecha: hasta x = 138
+            return NSPoint(x: screen.maxX - (138 - VB_X) * s, y: randomY)
+        }
+    }
+
+    @objc private func gamePeek() {
+        panel.setFrameOrigin(hidingSpot())
+        js("carita.peek(true)")
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.5
+            self.panel.animator().alphaValue = 1
+        }
+        hideStart = Date()
+        gameTimer(30, #selector(gameHint))
+        gameTimer(70, #selector(gameHint))
+        gameTimer(120, #selector(gameGiveUp))
+    }
+
+    @objc private func gameHint() {
+        guard hiding else { return }
+        js("carita.say(carita.frase('hideHint'))")
+    }
+
+    @objc private func gameGiveUp() {
+        guard hiding else { return }
+        js("carita.peek(false)")
+        endGame(message: "carita.say(carita.frase('hideWin'))")
+    }
+
+    /// ¡Lo has pillado!
+    private func gameFound() {
+        guard let start = hideStart else { return }   // aún contando: no vale
+        let secs = Int(Date().timeIntervalSince(start).rounded())
+        let time = secs < 60 ? "\(secs) segundo\(secs == 1 ? "" : "s")"
+            : "\(secs / 60) minuto\(secs >= 120 ? "s" : "")\(secs % 60 > 0 ? " y \(secs % 60) segundos" : "")"
+        let line = "¡Me has pillado! Has tardado \(time)"
+        js("carita.found()")
+        app?.speak(line, interrupt: true, by: self)
+        endGame(message: "carita.say(\(app?.jsString(line) ?? "''"))")
+    }
+
+    /// Fin de la partida: dice lo que toque y vuelve a casa andando.
+    func endGame(message: String?) {
+        guard hiding else { return }
+        hiding = false
+        hideStart = nil
+        gameTimers.forEach { $0.invalidate() }
+        gameTimers = []
+        js("carita.peek(false)")
+        panel.alphaValue = 1
+        if let m = message { js(m) }
+        if let home = gameHome {
+            gameHome = nil
+            travel(to: home)
         }
     }
 
