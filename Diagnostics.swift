@@ -142,8 +142,14 @@ final class DiagnosticsModel: NSObject, ObservableObject {
         let fm = FileManager.default
 
         // 1. último aviso de Claude Code
-        if let attrs = try? fm.attributesOfItem(atPath: statePath), let m = attrs[.modificationDate] as? Date {
-            let state = ((try? String(contentsOfFile: statePath, encoding: .utf8)) ?? "?").trimmingCharacters(in: .whitespacesAndNewlines)
+        // el más reciente entre el general y los de cada sesión
+        let sessionStates = ((try? fm.contentsOfDirectory(atPath: sessionsDir)) ?? [])
+            .filter { $0.hasSuffix(".state") }.map { (sessionsDir as NSString).appendingPathComponent($0) }
+        let newest = ([statePath] + sessionStates).compactMap { p -> (String, Date)? in
+            ((try? fm.attributesOfItem(atPath: p))?[.modificationDate] as? Date).map { (p, $0) }
+        }.max { $0.1 < $1.1 }
+        if let (path, m) = newest {
+            let state = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "?").trimmingCharacters(in: .whitespacesAndNewlines)
             let age = Date().timeIntervalSince(m)
             list.append(Check(id: "state", title: "Último aviso de Claude Code",
                               detail: "«\(state)» \(DiagnosticsModel.ago(m))",

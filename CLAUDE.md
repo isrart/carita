@@ -8,14 +8,16 @@ App de macOS que pone cara a Claude Code: un bichito flotante que reacciona a lo
 
 ```
 Claude Code ──hooks──▶ ~/.carita/hook.sh <evento>
-                         ├─ carita.py (solo para hello, prompt, done, Bash pre/post)
-                         └─ escribe ~/.carita/{state, say, costume, term}
-Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.html (el personaje)
+                         ├─ carita.py (solo para hello, prompt, done, Bash pre/post y la ficha de una sesión nueva)
+                         └─ escribe ~/.carita/sesiones/<session_id>.{state, say, info}
+                            (sin session_id: ~/.carita/{state, say}; además costume y term)
+Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebView con face.html) por sesión
 ```
 
 | Archivo | Qué es |
 |---|---|
 | `main.swift` | La app (AppKit, sin Xcode). Panel flotante transparente con un `WKWebView`, capa `DragView` para arrastrar y hacer clic, bocadillo nativo (`BubbleView` en su propio panel), voz (`AVSpeechSynthesizer`), viaje hasta el ratón, menú contextual. |
+| `Creature.swift` | Un bicho: su panel, su cara (`WKWebView`), su bocadillo, su viaje, la mirada y la sesión que representa (`SessionInfo` de `<id>.info`: carpeta, proyecto, disfraz, tty y app de terminal). `AppDelegate` reparte las sesiones (`adopt`, `retire`, como mucho 4). |
 | `Settings.swift` | `Config` (`~/.carita/config.json`, única fuente de verdad; migra lo que había en `UserDefaults`), `ConfigStore` (guarda y recarga si se edita a mano) y la ventana de Ajustes en SwiftUI. |
 | `Diagnostics.swift` | Ventana de diagnóstico (semáforos, reinstalar hooks, probar, copiar informe) y `Scripts`: copia `hook.sh`/`carita.py` de la app a `~/.carita` (también al arrancar si no coinciden). |
 | `Stats.swift` | Historial (`~/.carita/historial.jsonl`, rotación a `historial-resumen.json`) y ventana de estadísticas con Swift Charts. |
@@ -39,16 +41,17 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 - **`hook.sh` nunca imprime nada por stdout y siempre sale con 0.** En `UserPromptSubmit` la salida se añadiría al contexto de Claude; un código 2 en `Stop` bloquearía a Claude.
 - **Los hooks tienen que ser rápidos** (se ejecutan en cada herramienta). Python solo donde hace falta.
 - **`hooks.py` no puede perder configuración del usuario.** Solo toca entradas cuyo comando contiene `/.carita/hook.sh`, y guarda copia la primera vez.
-- **Geometría sincronizada:** el `viewBox` de la app (`-20 -24 240 224` en `face.html`) y `VB_X`, `VB_Y`, `VB_W`, `baseSize` en `main.swift` deben coincidir. De ahí salen el área clicable (elipse centrada en 100,112), la posición del bocadillo y hacia dónde miran los ojos.
+- **Geometría sincronizada:** el `viewBox` de la app (`-20 -24 240 224` en `face.html`) y `VB_X`, `VB_Y`, `VB_W`, `baseSize` en `main.swift` deben coincidir. De ahí salen el área clicable (elipse centrada en 100,112), la posición del bocadillo y hacia dónde miran los ojos. El panel de cada bicho mide eso más `labelHeight` por debajo (la etiqueta con el proyecto): las cuentas se hacen desde arriba (`frame.maxY`).
 - **Solo el bicho recibe clics:** el panel cambia `ignoresMouseEvents` según el ratón esté o no sobre el cuerpo. No romperlo con ventanas nuevas.
 - **Nada sale del Mac** salvo lo que se pida explícitamente (p. ej., buscar actualizaciones).
 - **Ajustes solo en `config.json`**, nunca en `UserDefaults` (salvo la posición de la ventana, que guarda AppKit). Cualquier cambio pasa por `store.c` y se aplica en `configChanged(from:)`.
-- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Settings.swift`, `Diagnostics.swift`, `Stats.swift` y `Updater.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
+- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Creature.swift`, `Settings.swift`, `Diagnostics.swift`, `Stats.swift` y `Updater.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
 
 ## Cómo probar
 
 - **Cara:** abre `face.html` en el navegador; los botones de la demo recorren todos los estados y disfraces.
 - **App:** `./build.sh && open build/Carita.app` (o `bash install.sh` para instalarla de verdad). Clic derecho → «Probar expresión».
+- **Aislada:** `open -n --env CARITA_DIR=/carpeta build/Carita.app` usa otra carpeta en vez de `~/.carita` (los hooks también respetan `CARITA_DIR`): sirve para simular sesiones con `echo '{"session_id":"a1","cwd":"…"}' | CARITA_DIR=/carpeta /carpeta/hook.sh hello` sin que lleguen las reales.
 - **Registro:** `open --env CARITA_LOG=/tmp/carita.log build/Carita.app` apunta cada llamada a la cara, la voz, el bocadillo, no molestar y los atajos.
 - **Capturas de las ventanas:** `open --env CARITA_SNAPSHOT=/carpeta build/Carita.app` abre Ajustes, Diagnóstico y Estadísticas, las guarda como PNG y las cierra (no hace falta permiso de grabación de pantalla).
 - **Hooks sin Claude Code:**

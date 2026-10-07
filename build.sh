@@ -16,7 +16,7 @@ APP="build/Carita.app"
 
 echo "🔨 Compilando Carita $VERSION ($BUILD_NUMBER)…"
 mkdir -p build
-swiftc -O -swift-version 5 main.swift Settings.swift Diagnostics.swift Stats.swift Updater.swift -o build/Carita
+swiftc -O -swift-version 5 main.swift Creature.swift Settings.swift Diagnostics.swift Stats.swift Updater.swift -o build/Carita
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

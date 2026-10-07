@@ -431,15 +431,33 @@ final class SpeechWatcher: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, WKNavigationDelegate {
-    var panel: Panel!
-    var web: WKWebView!
-    var drag: DragView!
-    var bubblePanel: Panel!
-    var bubbleView: BubbleView!
-    var bubbleText = ""
-    var bubbleAnchor = NSRect.zero
+/// Para pruebas: `open --env CARITA_LOG=/ruta/log build/Carita.app` apunta cada llamada a la cara.
+let debugLogPath = ProcessInfo.processInfo.environment["CARITA_LOG"]
+func debugLog(_ line: String) {
+    guard let path = debugLogPath else { return }
+    let text = String(format: "%.3f %@\n", Date().timeIntervalSince1970, line)
+    if let h = FileHandle(forWritingAtPath: path) {
+        h.seekToEndOfFile()
+        h.write(text.data(using: .utf8)!)
+        h.closeFile()
+    } else {
+        try? text.write(toFile: path, atomically: false, encoding: .utf8)
+    }
+}
+
+/// Tamaño del dibujo a escala 1 (igual que el viewBox de face.html).
+let baseSize = NSSize(width: 240, height: 224)
+let sessionsDir = (stateDir as NSString).appendingPathComponent("sesiones")
+let maxCreatures = 4
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Un bicho por sesión de Claude Code; siempre hay al menos uno (el primero guarda su sitio).
+    var creatures: [Creature] = []
+    var primary: Creature { creatures[0] }
+    /// El que está hablando ahora (la voz es una para todos).
+    weak var speaker: Creature?
     var dirSource: DispatchSourceFileSystemObject?
+    var sessionsSource: DispatchSourceFileSystemObject?
     var fileSources: [String: (source: DispatchSourceFileSystemObject, inode: UInt64)] = [:]
     var fallbackTimer: Timer?
     var mouseMonitors: [Any] = []
@@ -447,26 +465,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     var lastSayMTime: Date?
     var lastCostumeMTime: Date?
     var lastReplyAt = Date.distantPast
-    var currentState = "idle"
     let watcher = SpeechWatcher()
-    var pageReady = false
-    var lastLook = CGPoint(x: 9, y: 9)
     let speech = AVSpeechSynthesizer()
     var statusItem: NSStatusItem!
     var unmuteTimer: Timer?
-    var noticeTimer: Timer?
-    var noticeText = ""
     var pendingNotice: String?
     var lastPhrasesData: Data?
-    let baseSize = NSSize(width: 240, height: 224)
-
-    // viaje hasta ti cuando te necesita
-    var homeOrigin: NSPoint?
-    var travelTimer: Timer?
-    var travelStart = NSPoint.zero
-    var travelTarget = NSPoint.zero
-    var travelBegan = Date()
-    var travelDuration: TimeInterval = 1
+    var startedUp = false
 
     let testStates: [(String, String)] = [
         ("Hola", "hello"), ("Pensando", "thinking"), ("Leyendo", "reading"), ("Escribiendo", "writing"),
@@ -543,46 +548,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         updateScriptsIfNeeded()
         History.rotateIfNeeded()
 
-        let size = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
-        let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let rect = NSRect(x: screen.maxX - size.width - 20, y: screen.minY + 10,
-                          width: size.width, height: size.height)
+        // no repetir lo último de la vez anterior al arrancar
+        lastMTime = modDate(statePath)
+        lastSayMTime = modDate(sayPath)
 
-        panel = makePanel(rect)
-
-        let container = NSView(frame: NSRect(origin: .zero, size: size))
-        container.autoresizesSubviews = true
-
-        let config = WKWebViewConfiguration()
-        config.userContentController.add(self, name: "carita")
-        web = WKWebView(frame: container.bounds, configuration: config)
-        web.autoresizingMask = [.width, .height]
-        web.setValue(false, forKey: "drawsBackground")
-        web.underPageBackgroundColor = .clear
-        web.navigationDelegate = self
-        container.addSubview(web)
-
-        drag = DragView(frame: container.bounds)
-        drag.autoresizingMask = [.width, .height]
-        drag.onClick = { [weak self] in self?.clicked() }
-        drag.onDragStart = { [weak self] in self?.stopTravel() }
-        drag.onDragEnd = { [weak self] in self?.homeOrigin = nil }   // si lo sueltas en otro sitio, se queda ahí
-        drag.onMouseMoved = { [weak self] in self?.mouseMoved() }
-        container.addSubview(drag)
-        panel.contentView = container
+        let first = Creature(app: self, origin: nil)
+        creatures = [first]
+        // recuerda dónde lo dejaste, siempre que siga dentro de alguna pantalla
+        let fallback = first.panel.frame
+        if first.panel.setFrameUsingName("CaritaWindow2") {
+            var f = first.panel.frame
+            f.size = first.panelSize
+            let visible = NSScreen.screens.contains { $0.frame.intersects(f) }
+            first.panel.setFrame(visible ? f : fallback, display: false)
+        }
+        first.panel.setFrameAutosaveName("CaritaWindow2")
+        if !away { first.panel.orderFrontRegardless() }
 
         speech.delegate = watcher
-        watcher.onChange = { [weak self] on in self?.js("carita.talking(\(on))") }
-
-        bubbleView = BubbleView(frame: NSRect(x: 0, y: 0, width: 10, height: 10))
-        bubblePanel = makePanel(NSRect(x: 0, y: 0, width: 10, height: 10))
-        bubblePanel.ignoresMouseEvents = true
-        bubblePanel.contentView = bubbleView
-        bubblePanel.alphaValue = 0
+        watcher.onChange = { [weak self] on in self?.speaker?.js("carita.talking(\(on))") }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.image = statusIcon(alert: false)
@@ -600,26 +588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         updateTimer?.tolerance = 600
         refreshMenu()
         scheduleUnmute()
-
-        // recuerda dónde lo dejaste, siempre que siga dentro de alguna pantalla
-        if panel.setFrameUsingName("CaritaWindow2") {
-            var f = panel.frame
-            f.size = size
-            let visible = NSScreen.screens.contains { $0.frame.intersects(f) }
-            panel.setFrame(visible ? f : rect, display: false)
-        }
-        panel.setFrameAutosaveName("CaritaWindow2")
-
-        if let url = Bundle.main.url(forResource: "face", withExtension: "html") {
-            web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        }
-        if !away { panel.orderFrontRegardless() }
-
-        // el bocadillo y la mirada siguen al bicho cuando se mueve (arrastrar, viajar, cambiar de tamaño)
-        NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
-                                               name: NSWindow.didMoveNotification, object: panel)
-        NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
-                                               name: NSWindow.didResizeNotification, object: panel)
+        resumeSessions()
         startWatching()
 
         // al dormir o bloquear, que el bicho no se quede con los clics (si el sistema pierde el «soltar»
@@ -635,34 +604,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         }
     }
 
+    /// Cuando la cara de un bicho termina de cargar. La del primero arranca lo que depende de ella.
+    func creatureReady(_ c: Creature) {
+        guard c === creatures.first, !startedUp else { return }
+        startedUp = true
+        if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
+        dailyUpdateCheck()
+        if ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] != nil {
+            openSettings()
+            openDiagnostics()
+            openStats()
+            Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(takeSnapshots), userInfo: nil, repeats: false)
+        }
+        checkFiles()
+    }
+
     @objc func systemWillSleep() {
-        debugLog("el Mac se duerme o se bloquea: el bicho deja pasar los clics")
-        stopTravel()
-        panel.ignoresMouseEvents = true
+        debugLog("el Mac se duerme o se bloquea: los bichos dejan pasar los clics")
+        for c in creatures {
+            c.stopTravel()
+            c.panel.ignoresMouseEvents = true
+        }
     }
 
     @objc func systemDidWake() {
         debugLog("el Mac despierta")
-        panel.ignoresMouseEvents = true
+        for c in creatures { c.panel.ignoresMouseEvents = true }
         // un segundo para que el sistema se asiente antes de volver a mirar dónde está el ratón
         Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(fallbackTick), userInfo: nil, repeats: false)
     }
 
     // MARK: vigilar archivos y ratón (sin sondeo continuo)
 
-    /// Los hooks escriben con `mv`, así que lo que cambia es la carpeta: se vigila ~/.carita.
-    func startWatching() {
-        let fd = open(stateDir, O_EVTONLY)
-        if fd >= 0 {
-            let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
-            src.setEventHandler { [weak self] in
-                self?.performSelector(onMainThread: #selector(AppDelegate.checkFiles), with: nil, waitUntilDone: false)
-            }
-            src.setCancelHandler { close(fd) }
-            src.resume()
-            dirSource = src
+    func watchDir(_ path: String) -> DispatchSourceFileSystemObject? {
+        let fd = open(path, O_EVTONLY)
+        guard fd >= 0 else { return nil }
+        let src = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
+        src.setEventHandler { [weak self] in
+            self?.performSelector(onMainThread: #selector(AppDelegate.checkFiles), with: nil, waitUntilDone: false)
         }
+        src.setCancelHandler { close(fd) }
+        src.resume()
+        return src
+    }
 
+    /// Los hooks escriben con `mv`, así que lo que cambia son las carpetas: ~/.carita y ~/.carita/sesiones.
+    func startWatching() {
+        dirSource = watchDir(stateDir)
+        sessionsSource = watchDir(sessionsDir)
         watchFile(configPath)
         watchFile(phrasesPath)
 
@@ -712,280 +701,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc func fallbackTick() {
         checkFiles()
         mouseMoved()
+        sweepSessions()
     }
 
-    @objc func panelMoved() {
-        if !bubbleText.isEmpty && panel.frame != bubbleAnchor { layoutBubble() }
-        mouseMoved()
-    }
-
-    func makePanel(_ rect: NSRect) -> Panel {
-        let p = Panel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel],
-                      backing: .buffered, defer: false)
-        p.isOpaque = false
-        p.backgroundColor = .clear
-        p.hasShadow = false
-        p.level = .floating
-        p.hidesOnDeactivate = false
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        return p
-    }
-
-    // MARK: web
-
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        pageReady = true
-        // no repetir el último estado de la sesión anterior al arrancar
-        lastMTime = modDate(statePath)
-        lastSayMTime = modDate(sayPath)
-        lastCostumeMTime = nil   // el disfraz sí se aplica al arrancar
-        if away { js("carita.hidden(true)") }
-        sendFaceConfig()
-        if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
-        dailyUpdateCheck()
-        if ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] != nil {
-            openSettings()
-            openDiagnostics()
-            openStats()
-            Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(takeSnapshots), userInfo: nil, repeats: false)
-        }
-        checkFiles()
-        mouseMoved()
-    }
-
-    func userContentController(_ userContentController: WKUserContentController,
-                               didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-        let text = body["text"] as? String ?? ""
-        switch type {
-        case "bubble":
-            showBubble(text)
-        case "log":
-            debugLog("cara: " + text)
-        case "event":
-            if ["stretch", "mask"].contains(text) { History.append(text) }   // descansos, para las estadísticas
-        case "sound":
-            NSSound(named: NSSound.Name(text))?.play()   // "Pop": el tapón del cava
-        case "say":
-            // avisos cortos ("¡Hecho!", "te necesito"); no pisan la lectura de una respuesta
-            if talks, Date().timeIntervalSince(lastReplyAt) > 4, !text.isEmpty { speak(text, interrupt: true) }
-        default:
-            break
-        }
-    }
-
-    func js(_ code: String) {
-        guard pageReady else { return }
-        debugLog(code)
-        web.evaluateJavaScript(code, completionHandler: nil)
-    }
-
-    /// Para pruebas: `open --env CARITA_SNAPSHOT=/carpeta build/Carita.app` abre las ventanas
-    /// (ajustes, diagnóstico, estadísticas) y las guarda como PNG en esa carpeta.
-    @objc func takeSnapshots() {
-        guard let dir = ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] else { return }
-        // solo las ventanas normales (ni el bicho ni el icono de la barra de menús)
-        for w in NSApp.windows where w.isVisible && w.styleMask.contains(.titled) {
-            guard let view = w.contentView?.superview ?? w.contentView,
-                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
-            view.cacheDisplay(in: view.bounds, to: rep)
-            let name = w.title.replacingOccurrences(of: " ", with: "-")
-            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
-            w.close()
-        }
-        debugLog("capturas guardadas en \(dir)")
-    }
-
-    /// Para pruebas: `open --env CARITA_LOG=/ruta/log build/Carita.app` apunta cada llamada a la cara.
-    let debugLogPath = ProcessInfo.processInfo.environment["CARITA_LOG"]
-    func debugLog(_ line: String) {
-        guard let path = debugLogPath else { return }
-        let text = String(format: "%.3f %@\n", Date().timeIntervalSince1970, line)
-        if let h = FileHandle(forWritingAtPath: path) {
-            h.seekToEndOfFile()
-            h.write(text.data(using: .utf8)!)
-            h.closeFile()
-        } else {
-            try? text.write(toFile: path, atomically: false, encoding: .utf8)
-        }
-    }
-
-    func speak(_ text: String, interrupt: Bool, force: Bool = false) {
-        guard force || !quiet else { return }
-        debugLog("voz: " + text)
-        let utterance = AVSpeechUtterance(string: text.replacingOccurrences(of: "*", with: ""))
-        utterance.voice = voice
-        utterance.rate = Float(cfg.velocidad)
-        utterance.pitchMultiplier = Float(cfg.tono)
-        if interrupt && speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
-        speech.speak(utterance)
-    }
-
-    func clicked() {
-        if speech.isSpeaking {
-            speech.stopSpeaking(at: .word)
-            js("carita.say('Vale, vale, me callo')")
-        } else if currentState == "asking", focusTerminal() {
-            js("carita.say('¡Vamos para allá!')")
-        } else {
-            js("carita.poke()")
-        }
-    }
-
-    /// Texto seguro para meterlo en una llamada de JavaScript.
-    func jsString(_ s: String) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: [s]),
-              let json = String(data: data, encoding: .utf8) else { return "''" }
-        return String(json.dropFirst().dropLast())
-    }
-
-    // MARK: bocadillo
-
-    /// Coordenadas de pantalla de un punto del dibujo.
-    func screenPoint(_ vx: CGFloat, _ vy: CGFloat) -> NSPoint {
-        let f = panel.frame
-        let s = f.width / VB_W
-        return NSPoint(x: f.minX + (vx - VB_X) * s, y: f.maxY - (vy - VB_Y) * s)
-    }
-
-    /// Un aviso de la propia app (p. ej., «me callo»): sale aunque esté silenciada.
-    func notice(_ text: String) {
-        guard !away else { return }
-        showBubble(text, force: true)
-        noticeTimer?.invalidate()
-        noticeTimer = Timer.scheduledTimer(timeInterval: 3.5, target: self, selector: #selector(hideNotice),
-                                           userInfo: nil, repeats: false)
-    }
-    @objc func hideNotice() { if bubbleText == noticeText { showBubble("") } }
-
-    func showBubble(_ text: String, force: Bool = false) {
-        if text.isEmpty {
-            bubbleText = ""
-            NSAnimationContext.runAnimationGroup { ctx in
-                ctx.duration = 0.18
-                self.bubblePanel.animator().alphaValue = 0
-            }
-            return
-        }
-        guard force || !quiet else { return }
-        if force { noticeText = text }
-        debugLog("bocadillo: " + text)
-        bubbleText = text
-        bubbleView.label.font = roundedFont(13 * scale)
-        bubbleView.label.stringValue = text
-        layoutBubble()
-        bubblePanel.orderFrontRegardless()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            self.bubblePanel.animator().alphaValue = 1
-        }
-    }
-
-    /// Encima de la cabeza; si no cabe (barra de menús), debajo de los pies.
-    func layoutBubble() {
-        let s = panel.frame.width / VB_W
-        let maxTextW = 200 * s
-        let fit = bubbleView.label.cell?.cellSize(forBounds: NSRect(x: 0, y: 0, width: maxTextW, height: 10000))
-            ?? NSSize(width: maxTextW, height: 20)
-        let w = min(maxTextW, ceil(fit.width)) + 28
-        let h = ceil(fit.height) + 18 + bubbleView.tail + 3
-
-        let head = screenPoint(100, 30)     // punta de la hoja
-        let feet = screenPoint(100, 190)
-        let screen = NSScreen.screens.first { $0.frame.contains(head) }?.visibleFrame
-            ?? panel.screen?.visibleFrame ?? panel.frame
-        var below = false
-        var y = head.y + 2
-        if y + h > screen.maxY { below = true; y = feet.y - h - 2 }
-        let x = min(max(head.x - w / 2, screen.minX + 4), screen.maxX - w - 4)
-
-        bubbleView.tailUp = below
-        bubbleView.tailX = head.x - x
-        bubblePanel.setFrame(NSRect(x: x, y: y, width: w, height: h), display: true)
-        bubbleView.needsLayout = true
-        bubbleView.needsDisplay = true
-        bubbleAnchor = panel.frame
-    }
-
-    // MARK: ir a buscarte
-
-    func termBundle() -> String? {
-        let id = (try? String(contentsOfFile: termPath, encoding: .utf8))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (id?.isEmpty ?? true) ? nil : id
-    }
-
-    func userIsLookingAtTerminal() -> Bool {
-        guard let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
-        if let t = termBundle() { return front == t }
-        return terminalApps.contains(front)
-    }
-
-    @discardableResult
-    func focusTerminal() -> Bool {
-        guard let id = termBundle(),
-              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return false }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration(),
-                                           completionHandler: nil)
-        return true
-    }
-
-    func stateChanged(to s: String) {
-        currentState = s
-        statusItem.button?.image = statusIcon(alert: s == "asking")
-        if s == "asking" {
-            goFindUser()
-        } else if homeOrigin != nil {
-            goHome()
-        }
-    }
-
-    func goFindUser() {
-        guard seeksYou, !quiet, homeOrigin == nil, !userIsLookingAtTerminal() else { return }
-        let mouse = NSEvent.mouseLocation
-        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) else { return }
-        let f = panel.frame
-        if hypot(mouse.x - f.midX, mouse.y - f.midY) < 220 { return }   // ya estás cerca
-        let v = screen.visibleFrame
-        var target = NSPoint(x: mouse.x + 30, y: mouse.y - f.height - 30)
-        if target.y < v.minY { target.y = mouse.y + 30 }
-        target.x = min(max(target.x, v.minX), v.maxX - f.width)
-        target.y = min(max(target.y, v.minY), v.maxY - f.height)
-        homeOrigin = f.origin
-        travel(to: target)
-    }
-
-    func goHome() {
-        guard let home = homeOrigin else { return }
-        homeOrigin = nil
-        travel(to: home)
-    }
-
-    func travel(to target: NSPoint) {
-        stopTravel()
-        travelStart = panel.frame.origin
-        travelTarget = target
-        travelBegan = Date()
-        let dist = hypot(target.x - travelStart.x, target.y - travelStart.y)
-        travelDuration = min(1.6, max(0.5, Double(dist) / 1300))
-        js("carita.travel(\(target.x < travelStart.x ? -1 : 1))")
-        travelTimer = Timer.scheduledTimer(timeInterval: 1.0 / 60, target: self, selector: #selector(travelStep),
-                                           userInfo: nil, repeats: true)
-    }
-
-    func stopTravel() {
-        guard travelTimer != nil else { return }
-        travelTimer?.invalidate()
-        travelTimer = nil
-        js("carita.travel(0)")
-    }
-
-    @objc func travelStep() {
-        let p = min(1, Date().timeIntervalSince(travelBegan) / travelDuration)
-        let e = CGFloat(p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2)
-        panel.setFrameOrigin(NSPoint(x: travelStart.x + (travelTarget.x - travelStart.x) * e,
-                                     y: travelStart.y + (travelTarget.y - travelStart.y) * e))
-        if p >= 1 { stopTravel() }
+    func mouseMoved() {
+        for c in creatures where !c.leaving { c.mouseMoved() }
     }
 
     // MARK: archivos de estado
@@ -1000,78 +720,263 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         return String(raw.filter { $0.isASCII && $0.isLetter }.prefix(20))
     }
 
-    func applyCostume() {
-        let c = costumeChoice == "auto" ? readWord(costumePath) : costumeChoice
-        js("carita.costume('\(c.isEmpty ? "none" : c)')")
+    func sessionFile(_ sid: String, _ ext: String) -> String {
+        (sessionsDir as NSString).appendingPathComponent("\(sid).\(ext)")
     }
 
     @objc func checkFiles() {
-        guard pageReady else { return }
+        guard startedUp else { return }
         rewatchFiles()
         store.reloadIfChanged()
         if phrasesData() != lastPhrasesData { sendFaceConfig() }
 
+        // estado sin sesión (la prueba del diagnóstico, hooks antiguos): para el primer bicho
         if let m = modDate(statePath), m != lastMTime {
             lastMTime = m
             let s = readWord(statePath)
-            if !s.isEmpty {
-                lastArrival = (s, Date())
-                // si le preguntas otra cosa mientras habla, se calla
-                if workStates.contains(s) && speech.isSpeaking { speech.stopSpeaking(at: .word) }
-                js("carita.set('\(s)')")
-                stateChanged(to: s)
-            }
+            if !s.isEmpty { arrived(s, for: primary) }
         }
 
         let costumeM = modDate(costumePath) ?? .distantPast
         if costumeM != lastCostumeMTime {
             lastCostumeMTime = costumeM
-            applyCostume()
+            for c in creatures where c.sessionID == nil { c.applyCostume() }
         }
-
-        // resumen de la última respuesta, para leerlo en voz alta
         if let m = modDate(sayPath), m != lastSayMTime {
             lastSayMTime = m
-            if readAloud, Date().timeIntervalSince(m) < 20,
-               let data = FileManager.default.contents(atPath: sayPath),
-               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-               let text = obj["voice"] as? String, !text.isEmpty {
-                let bubbleText = (obj["bubble"] as? String) ?? text
-                lastReplyAt = Date()
-                js("carita.reply(\(jsString(bubbleText)))")
-                speak(text, interrupt: true)
+            readReply(sayPath, m, by: primary)
+        }
+
+        // cada sesión, a su bicho
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: sessionsDir)) ?? []
+        for file in names where file.hasSuffix(".state") {
+            let sid = String(file.dropLast(".state".count))
+            let path = sessionFile(sid, "state")
+            guard let m = modDate(path) else { continue }
+            var c = creatures.first { $0.sessionID == sid && !$0.leaving }
+            if c == nil {
+                // una sesión nueva (o que vuelve): solo si el aviso es reciente
+                guard Date().timeIntervalSince(m) < 600, readWord(path) != "bye" else { continue }
+                c = adopt(sid)
+            }
+            guard let creature = c else { continue }
+            refreshInfo(creature)
+            if m != creature.lastStateMTime {
+                creature.lastStateMTime = m
+                let s = readWord(path)
+                if !s.isEmpty { arrived(s, for: creature) }
+            }
+            let sayFile = sessionFile(sid, "say")
+            if let sm = modDate(sayFile), sm != creature.lastSayMTime {
+                creature.lastSayMTime = sm
+                readReply(sayFile, sm, by: creature)
             }
         }
     }
 
-    /// Los ojos siguen al ratón y solo el bicho recibe clics.
-    func mouseMoved() {
-        guard pageReady, !away else { return }
-        let mouse = NSEvent.mouseLocation
-        let eyes = screenPoint(100, 112)
-        let dx = max(-1, min(1, (mouse.x - eyes.x) / 300))
-        let dy = max(-1, min(1, (eyes.y - mouse.y) / 300))
-        if abs(dx - lastLook.x) > 0.01 || abs(dy - lastLook.y) > 0.01 {
-            lastLook = CGPoint(x: dx, y: dy)
-            js(String(format: "carita.look(%.3f,%.3f)", dx, dy))
+    /// Un estado que llega para un bicho.
+    func arrived(_ s: String, for c: Creature) {
+        lastArrival = (s, Date())
+        // si le preguntas otra cosa mientras habla, se calla
+        if workStates.contains(s) && speech.isSpeaking && speaker === c { speech.stopSpeaking(at: .word) }
+        c.set(s)
+        if s == "bye", c.sessionID != nil {
+            Timer.scheduledTimer(timeInterval: 6, target: self, selector: #selector(retireFired(_:)), userInfo: c, repeats: false)
         }
+        statusItem.button?.image = statusIcon(alert: creatures.contains { $0.currentState == "asking" && !$0.leaving })
+    }
 
-        // el resto de la ventana deja pasar el clic a lo que haya detrás. No se toca mientras arrastras.
-        if NSEvent.pressedMouseButtons == 0 {
-            let over = isOverCreature(mouse)
-            if panel.ignoresMouseEvents == over { panel.ignoresMouseEvents = !over; debugLog("clicable \(over)") }
+    /// El resumen de una respuesta, para leerlo en voz alta.
+    func readReply(_ path: String, _ m: Date, by c: Creature) {
+        guard readAloud, Date().timeIntervalSince(m) < 20,
+              let data = FileManager.default.contents(atPath: path),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let text = obj["voice"] as? String, !text.isEmpty else { return }
+        let bubbleText = (obj["bubble"] as? String) ?? text
+        lastReplyAt = Date()
+        c.js("carita.reply(\(jsString(bubbleText)))")
+        speak(text, interrupt: true, by: c)
+    }
+
+    /// Relee la ficha de la sesión (proyecto, disfraz, pestaña) si ha cambiado.
+    func refreshInfo(_ c: Creature) {
+        guard let sid = c.sessionID else { return }
+        let path = sessionFile(sid, "info")
+        let m = modDate(path)
+        guard m != c.lastInfoMTime else { return }
+        c.lastInfoMTime = m
+        let old = c.info
+        c.info = SessionInfo(path: path) ?? SessionInfo()
+        if c.info.disfraz != old.disfraz { c.applyCostume() }
+        if c.info.proyecto != old.proyecto { updateLabels() }
+    }
+
+    // MARK: un bicho por sesión
+
+    /// Al arrancar, los bichos de las sesiones que seguían activas hace poco (sin repetir su último estado).
+    func resumeSessions() {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: sessionsDir)) ?? []
+        let recent = names.filter { $0.hasSuffix(".state") }.compactMap { file -> (String, Date)? in
+            let sid = String(file.dropLast(".state".count))
+            guard let m = modDate(sessionFile(sid, "state")), Date().timeIntervalSince(m) < 1800,
+                  readWord(sessionFile(sid, "state")) != "bye" else { return nil }
+            return (sid, m)
+        }.sorted { $0.1 > $1.1 }
+        for (sid, m) in recent.prefix(maxCreatures) {
+            let c = adopt(sid)
+            c.lastStateMTime = m
+            c.lastSayMTime = modDate(sessionFile(sid, "say"))
         }
     }
 
-    /// ¿Está el ratón encima del cuerpo (hoja, brazos y pies incluidos)?
-    func isOverCreature(_ p: NSPoint) -> Bool {
-        let f = panel.frame
-        let s = f.width / VB_W
-        let vx = (p.x - f.minX) / s + VB_X
-        let vy = (f.maxY - p.y) / s + VB_Y
-        let ex = (vx - 100) / 80
-        let ey = (vy - 112) / 82
-        return ex * ex + ey * ey <= 1
+    /// El bicho para una sesión nueva: el libre si lo hay; si no, uno nuevo al lado de los demás.
+    func adopt(_ sid: String) -> Creature {
+        let c: Creature
+        if let free = creatures.first(where: { $0.sessionID == nil && !$0.leaving }) {
+            c = free
+        } else if creatures.filter({ !$0.leaving }).count >= maxCreatures,
+                  let oldest = creatures.filter({ !$0.leaving && $0.currentState != "asking" }).min(by: { $0.lastEvent < $1.lastEvent }) {
+            c = oldest   // ya hay demasiados: el que lleva más rato sin hacer nada cambia de sesión
+        } else {
+            c = Creature(app: self, origin: spawnOrigin())
+            creatures.append(c)
+            if !away { c.panel.orderFrontRegardless() }
+        }
+        c.sessionID = sid
+        c.lastInfoMTime = nil
+        c.lastStateMTime = nil
+        c.lastSayMTime = nil
+        c.lastEvent = Date()
+        refreshInfo(c)
+        c.applyCostume()
+        updateLabels()
+        debugLog("sesión \(sid) → bicho \(c.name)")
+        return c
+    }
+
+    /// A la izquierda del que esté más a la izquierda; si no cabe, a la derecha del último.
+    func spawnOrigin() -> NSPoint {
+        let alive = creatures.filter { !$0.leaving }
+        guard let leftmost = alive.min(by: { $0.panel.frame.minX < $1.panel.frame.minX }),
+              let rightmost = alive.max(by: { $0.panel.frame.maxX < $1.panel.frame.maxX }) else { return .zero }
+        let f = leftmost.panel.frame
+        let screen = leftmost.panel.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? f
+        let step = f.width * 0.72   // los paneles tienen margen transparente: así quedan juntitos
+        if f.minX - step >= screen.minX { return NSPoint(x: f.minX - step, y: f.minY) }
+        let r = rightmost.panel.frame
+        if r.minX + step + r.width <= screen.maxX { return NSPoint(x: r.minX + step, y: r.minY) }
+        return NSPoint(x: f.minX, y: min(f.minY + f.height * 0.8, screen.maxY - f.height))
+    }
+
+    @objc func retireFired(_ timer: Timer) {
+        guard let c = timer.userInfo as? Creature, c.currentState == "bye" || c.currentState == "sleepy" else { return }
+        retire(c)
+    }
+
+    /// Su sesión ha terminado: si hay más bichos se va; si es el último, se queda sin sesión.
+    func retire(_ c: Creature) {
+        if let sid = c.sessionID {
+            for ext in ["state", "say", "info"] { try? FileManager.default.removeItem(atPath: sessionFile(sid, ext)) }
+            debugLog("sesión \(sid) terminada (bicho \(c.name))")
+        }
+        if speaker === c { speech.stopSpeaking(at: .word) }
+        let others = creatures.filter { $0 !== c && !$0.leaving }
+        if others.isEmpty {
+            c.sessionID = nil
+            c.info = SessionInfo()
+            c.applyCostume()
+        } else {
+            let wasFirst = c === creatures.first
+            c.dismiss()
+            creatures.removeAll { $0 === c }
+            if wasFirst { primary.panel.setFrameAutosaveName("CaritaWindow2") }
+        }
+        updateLabels()
+    }
+
+    /// Sesiones que se cerraron sin despedirse (terminal cerrada): fuera tras 45 min sin noticias.
+    func sweepSessions() {
+        for c in creatures where c.sessionID != nil && !c.leaving && c.currentState != "asking" {
+            if Date().timeIntervalSince(c.lastEvent) > 45 * 60 { retire(c) }
+        }
+    }
+
+    /// El nombre del proyecto debajo de cada bicho, solo si hay más de uno.
+    func updateLabels() {
+        let alive = creatures.filter { !$0.leaving }
+        for c in alive { c.showLabel(alive.count > 1) }
+    }
+
+    // MARK: voz
+
+    func speak(_ text: String, interrupt: Bool, force: Bool = false, by c: Creature? = nil) {
+        guard force || !quiet else { return }
+        debugLog("voz (\((c ?? primary).name)): " + text)
+        let utterance = AVSpeechUtterance(string: text.replacingOccurrences(of: "*", with: ""))
+        utterance.voice = voice
+        utterance.rate = Float(cfg.velocidad)
+        utterance.pitchMultiplier = Float(cfg.tono)
+        if interrupt && speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
+        if let old = speaker, old !== (c ?? primary) { old.js("carita.talking(false)") }
+        speaker = c ?? primary
+        speech.speak(utterance)
+    }
+
+    /// Avisos cortos ("¡Hecho!", "te necesito"); no pisan la lectura de una respuesta.
+    func shortSay(_ text: String, by c: Creature) {
+        if talks, Date().timeIntervalSince(lastReplyAt) > 4, !text.isEmpty { speak(text, interrupt: true, by: c) }
+    }
+
+    /// Avisos de la app: los dice el primer bicho.
+    func notice(_ text: String) {
+        guard let first = creatures.first else { return }
+        if first.pageReady { first.notice(text) } else { pendingNotice = text }
+    }
+
+    func jsString(_ s: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [s]),
+              let json = String(data: data, encoding: .utf8) else { return "''" }
+        return String(json.dropFirst().dropLast())
+    }
+
+    /// Para pruebas: `open --env CARITA_SNAPSHOT=/carpeta build/Carita.app` abre las ventanas
+    /// (ajustes, diagnóstico, estadísticas) y las guarda como PNG en esa carpeta.
+    @objc func takeSnapshots() {
+        guard let dir = ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] else { return }
+        // solo las ventanas normales (ni los bichos ni el icono de la barra de menús)
+        for w in NSApp.windows where w.isVisible && w.styleMask.contains(.titled) {
+            guard let view = w.contentView?.superview ?? w.contentView,
+                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            let name = w.title.replacingOccurrences(of: " ", with: "-")
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
+            w.close()
+        }
+        debugLog("capturas guardadas en \(dir)")
+    }
+
+    // MARK: la terminal
+
+    func termBundle(for c: Creature? = nil) -> String? {
+        if let t = c?.info.term, !t.isEmpty { return t }
+        let id = (try? String(contentsOfFile: termPath, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (id?.isEmpty ?? true) ? nil : id
+    }
+
+    func userIsLookingAtTerminal() -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
+        if let t = termBundle() { return front == t }
+        return terminalApps.contains(front)
+    }
+
+    @discardableResult
+    func focusTerminal(for c: Creature) -> Bool {
+        guard let id = termBundle(for: c),
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return false }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration(),
+                                           completionHandler: nil)
+        return true
     }
 
     // MARK: menu (clic derecho)
@@ -1177,7 +1082,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     func refreshMenu() {
-        drag.menu = buildMenu()
+        for c in creatures { c.drag.menu = buildMenu() }
         statusItem.menu = buildMenu()
     }
 
@@ -1195,7 +1100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             debugLog("atajo ocupado: " + clash.joined(separator: " "))
             if announce {
                 let msg = "El atajo \(clash.joined(separator: " y ")) ya lo usa el Mac. Cámbialo en Ajustes."
-                if pageReady { notice(msg) } else { pendingNotice = msg }
+                notice(msg)
             }
         }
         return clash
@@ -1211,21 +1116,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     @objc func toggleDndScreen() { store.c.noMolestarPantalla.toggle() }
     @objc func toggleHidden() { store.c.oculta.toggle() }
 
-    /// Enseña o esconde el bicho (y su bocadillo) según `away`.
+    /// Enseña o esconde los bichos (y sus bocadillos) según `away`.
     func applyVisibility() {
         wasAway = away
-        js("carita.hidden(\(away))")
-        if away {
-            speech.stopSpeaking(at: .immediate)
-            stopTravel()
-            homeOrigin = nil
-            showBubble("")
-            panel.orderOut(nil)
-            bubblePanel.orderOut(nil)
-        } else {
-            panel.orderFrontRegardless()
-            mouseMoved()
-        }
+        if away { speech.stopSpeaking(at: .immediate) }
+        for c in creatures where !c.leaving { c.applyVisibility(away) }
     }
 
     @objc func toggleMute() {
@@ -1259,13 +1154,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         store.c.tamano = value
     }
 
-    func applyScale(animate: Bool) {
-        var f = panel.frame
-        let newSize = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
-        f.origin.x += (f.width - newSize.width) / 2   // mantiene los pies en el mismo sitio
-        f.size = newSize
-        panel.setFrame(f, display: true, animate: animate)
-        if !bubbleText.isEmpty { showBubble(bubbleText) }
+    func goHomeAll() {
+        for c in creatures { c.goHome() }
     }
 
     @objc func setCostume(_ sender: NSMenuItem) {
@@ -1371,7 +1261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
             NSWorkspace.shared.open(url)
             return
         }
-        web.evaluateJavaScript("JSON.stringify(carita.frasesDeSerie())") { result, _ in
+        primary.web.evaluateJavaScript("JSON.stringify(carita.frasesDeSerie())") { result, _ in
             var obj: [String: Any] = ["_ayuda": "Cada clave sustituye a las frases de serie de ese estado; \"+done\" añade en vez de sustituir. {n} es tu nombre y {t} el tiempo trabajado. Borra las que no quieras cambiar."]
             if let json = result as? String, let data = json.data(using: .utf8),
                let serie = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -1385,7 +1275,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     /// Lo que la cara necesita saber de la config (nombre, tiempos del descanso en ms y frases).
-    func sendFaceConfig() {
+    /// Sin bicho: a todos (las frases se leen una sola vez, para no repetir avisos de error).
+    func sendFaceConfig(to one: Creature? = nil) {
         let face: [String: Any] = [
             "nombre": cfg.nombre,
             "breakAfter": cfg.descansoMinutos * 60_000,
@@ -1395,31 +1286,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: face),
               let json = String(data: data, encoding: .utf8) else { return }
-        js("carita.config(\(json))")
+        for c in one.map({ [$0] }) ?? creatures { c.js("carita.config(\(json))") }
     }
 
     /// Cualquier cambio de config (menú, Ajustes o config.json a mano) se aplica al momento.
     func configChanged(from old: Config) {
         let c = cfg
-        if c.tamano != old.tamano { applyScale(animate: false) }
-        if c.disfraz != old.disfraz { applyCostume() }
+        if c.tamano != old.tamano { for k in creatures { k.applyScale() } }
+        if c.disfraz != old.disfraz { for k in creatures { k.applyCostume() } }
         if c.oculta != old.oculta || c.noMolestarCamara != old.noMolestarCamara || c.noMolestarPantalla != old.noMolestarPantalla {
             if away != wasAway { applyVisibility() }
         }
         if c.silenciadaHasta != old.silenciadaHasta {
-            if muted { goHome() }
+            if muted { goHomeAll() }
             scheduleUnmute()
         }
         if c.atajoMostrar != old.atajoMostrar || c.atajoCallar != old.atajoCallar { registerHotKeys() }
-        if c.irABuscarte != old.irABuscarte && !c.irABuscarte { goHome() }
+        if c.irABuscarte != old.irABuscarte && !c.irABuscarte { goHomeAll() }
         if c.avisosVoz != old.avisosVoz && c.avisosVoz { speak("¡Vale! Te aviso con voz", interrupt: true) }
         if c.leerRespuestas != old.leerRespuestas {
             if c.leerRespuestas {
-                js("carita.reply('Te leo un resumen de cada respuesta')")
+                primary.js("carita.reply('Te leo un resumen de cada respuesta')")
                 speak("Vale. A partir de ahora te leo un resumen de cada respuesta.", interrupt: true)
             } else {
                 speech.stopSpeaking(at: .immediate)
-                js("carita.say('Vale, me callo')")
+                primary.js("carita.say('Vale, me callo')")
             }
         }
         if c.nombre != old.nombre || c.descansoMinutos != old.descansoMinutos
@@ -1439,7 +1330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
 
     @objc func test(_ sender: NSMenuItem) {
         guard let state = sender.representedObject as? String else { return }
-        js("carita.set('\(state)')")
+        for c in creatures where !c.leaving { c.js("carita.set('\(state)')") }
     }
 
     @objc func quit() { NSApp.terminate(nil) }

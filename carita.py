@@ -17,7 +17,8 @@ import sys
 import time
 
 VERSION = "dev"   # build.sh pone aquí la versión de la app
-DIR = os.path.expanduser("~/.carita")
+DIR = os.environ.get("CARITA_DIR") or os.path.expanduser("~/.carita")
+SESSIONS = os.path.join(DIR, "sesiones")
 MAX_VOICE = 260   # caracteres que dice en voz alta (unas 2-3 frases)
 MAX_BUBBLE = 90   # caracteres en el bocadillo
 
@@ -227,6 +228,40 @@ def log_event(ev, cwd):
         f.write(line + "\n")
 
 
+def session_id(data):
+    sid = re.sub(r"[^A-Za-z0-9_-]", "", str(data.get("session_id") or ""))
+    return sid or None
+
+
+def write_atomic(path, content):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".%d" % os.getpid()
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(content)
+    os.replace(tmp, path)
+
+
+def write_info(data):
+    """Ficha de la sesión para la app: carpeta, proyecto, disfraz y pestaña de la terminal."""
+    sid, cwd = session_id(data), data.get("cwd")
+    if not sid or not cwd:
+        return
+    info = {"cwd": cwd, "proyecto": os.path.basename(project_root(cwd)) or "?",
+            "disfraz": pick_costume(cwd), "tty": os.environ.get("CARITA_TTY", ""),
+            "term": os.environ.get("CARITA_TERM", "")}
+    path = os.path.join(SESSIONS, sid + ".info")
+    try:
+        with open(path, encoding="utf-8") as f:
+            old = json.load(f)
+        if not info["tty"]:
+            info["tty"] = old.get("tty", "")   # no perder la pestaña si esta vez no se pudo saber
+        if old == info:
+            return  # sin cambios: no despertar a la app
+    except Exception:
+        pass
+    write_atomic(path, json.dumps(info, ensure_ascii=False))
+
+
 def summary(data):
     text = data.get("last_assistant_message") or ""
     path = data.get("transcript_path")
@@ -240,11 +275,9 @@ def summary(data):
         return
     voice, bubble = summarize(text)
     if voice:
-        tmp = os.path.join(DIR, "say.%d" % os.getpid())
-        os.makedirs(DIR, exist_ok=True)
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"voice": voice, "bubble": bubble}, f, ensure_ascii=False)
-        os.replace(tmp, os.path.join(DIR, "say"))
+        sid = session_id(data)
+        path = os.path.join(SESSIONS, sid + ".say") if sid else os.path.join(DIR, "say")
+        write_atomic(path, json.dumps({"voice": voice, "bubble": bubble}, ensure_ascii=False))
 
 
 def main():
@@ -260,6 +293,10 @@ def main():
     try:
         if event in ("hello", "prompt") and cwd:
             write("costume", pick_costume(cwd))
+            write_info(data)
+        elif event == "info":
+            write_info(data)
+            state = ""
         elif event == "done":
             summary(data)
         elif event == "bashpre":
