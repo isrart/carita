@@ -40,7 +40,7 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         req.setValue("Carita/\(current)", forHTTPHeaderField: "User-Agent")
         session.dataTask(with: req).resume()
-        if interactive { onMessage?("Voy a mirar si hay versión nueva…") }
+        if interactive { onMessage?(T("Voy a mirar si hay versión nueva…", "Let me check for a new version…")) }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
@@ -49,7 +49,7 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if task is URLSessionDownloadTask {
-            if let error = error { fail("No pude descargarla: \(error.localizedDescription)") }
+            if let error = error { fail(T("No pude descargarla: \(error.localizedDescription)", "I couldn't download it: \(error.localizedDescription)")) }
             return
         }
         busy = false
@@ -60,18 +60,18 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
               let assets = obj["assets"] as? [[String: Any]],
               let zip = assets.first(where: { ($0["name"] as? String) == "Carita.zip" })?["browser_download_url"] as? String,
               let zipURL = URL(string: zip) else {
-            if interactive { onMessage?("No pude mirar las actualizaciones (\(error?.localizedDescription ?? "GitHub respondió \(status)")).") }
+            if interactive { onMessage?(T("No pude mirar las actualizaciones (\(error?.localizedDescription ?? "GitHub respondió \(status)")).", "I couldn't check for updates (\(error?.localizedDescription ?? "GitHub answered \(status)")).")) }
             return
         }
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
         if isNewer(version, than: current) {
             available = Release(version: version, zip: zipURL)
             onAvailable?(available)
-            onMessage?("¡Hay versión nueva! La \(version). Clic derecho → Actualizar")
+            onMessage?(T("¡Hay versión nueva! La \(version). Clic derecho → Actualizar", "There's a new version! \(version). Right-click → Update"))
         } else {
             available = nil
             onAvailable?(nil)
-            if interactive { onMessage?("Estás al día: tienes la \(current), la última") }
+            if interactive { onMessage?(T("Estás al día: tienes la \(current), la última", "You're up to date: \(current) is the latest")) }
         }
     }
 
@@ -83,17 +83,17 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
     func install() {
         guard let rel = available, !busy else { return }
         guard FileManager.default.isWritableFile(atPath: appURL.deletingLastPathComponent().path) else {
-            onMessage?("No puedo escribir en \(appURL.deletingLastPathComponent().path). Muévela a ~/Applications.")
+            onMessage?(T("No puedo escribir en \(appURL.deletingLastPathComponent().path). Muévela a ~/Applications.", "I can't write to \(appURL.deletingLastPathComponent().path). Move me to ~/Applications."))
             return
         }
         busy = true
-        onMessage?("Descargando la \(rel.version)…")
+        onMessage?(T("Descargando la \(rel.version)…", "Downloading \(rel.version)…"))
         // URLSession no marca la descarga en cuarentena: la app nueva abre sin el aviso de Gatekeeper
         session.downloadTask(with: rel.zip).resume()
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-        guard let rel = available else { return fail("Se ha perdido la versión a instalar") }
+        guard let rel = available else { return fail(T("Se ha perdido la versión a instalar", "I lost track of the version to install")) }
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent("carita-update-\(rel.version)")
         try? fm.removeItem(at: work)
@@ -104,30 +104,30 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
 
             // descomprimir con ditto (conserva la firma) y comprobar lo que ha salido
             let (unzipCode, unzipOut) = Scripts.run("/usr/bin/ditto", ["-x", "-k", zip.path, work.path], timeout: 60)
-            guard unzipCode == 0 else { return fail("No pude descomprimirla: \(unzipOut)") }
+            guard unzipCode == 0 else { return fail(T("No pude descomprimirla: \(unzipOut)", "I couldn't unzip it: \(unzipOut)")) }
             let newApp = work.appendingPathComponent("Carita.app")
             let plist = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist"))
             // la 1.14 cambió de identidad (com.bajovelo.carita → io.github.isrart.carita): valen las dos
             let ids: Set<String> = ["io.github.isrart.carita", "com.bajovelo.carita"]
             guard let newID = plist?["CFBundleIdentifier"] as? String, ids.contains(newID),
                   plist?["CFBundleShortVersionString"] as? String == rel.version else {
-                return fail("El zip descargado no es la Carita \(rel.version)")
+                return fail(T("El zip descargado no es la Carita \(rel.version)", "The downloaded zip isn't Carita \(rel.version)"))
             }
             let (signCode, _) = Scripts.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", newApp.path], timeout: 30)
-            guard signCode == 0 else { return fail("La firma de la app descargada no es válida") }
+            guard signCode == 0 else { return fail(T("La firma de la app descargada no es válida", "The downloaded app's signature isn't valid")) }
             // si esta app va firmada con el certificado propio, la nueva tiene que llevar el mismo
             if let req = ownCertificateRequirement() {
                 let (reqCode, _) = Scripts.run("/usr/bin/codesign", ["--verify", "-R=\(req)", newApp.path], timeout: 30)
-                guard reqCode == 0 else { return fail("La app descargada no está firmada con el certificado de Carita") }
+                guard reqCode == 0 else { return fail(T("La app descargada no está firmada con el certificado de Carita", "The downloaded app isn't signed with Carita's certificate")) }
             }
 
             // cambiar la vieja por la nueva de una vez (la vieja sigue en memoria hasta el relanzamiento)
             _ = try fm.replaceItemAt(appURL, withItemAt: newApp, backupItemName: nil, options: [])
             try? fm.removeItem(at: work)
         } catch {
-            return fail("No pude instalarla: \(error.localizedDescription)")
+            return fail(T("No pude instalarla: \(error.localizedDescription)", "I couldn't install it: \(error.localizedDescription)"))
         }
-        onMessage?("¡Listo! Me reinicio con la \(rel.version)…")
+        onMessage?(T("¡Listo! Me reinicio con la \(rel.version)…", "Done! Restarting with \(rel.version)…"))
         Timer.scheduledTimer(timeInterval: 1.5, target: self, selector: #selector(relaunch), userInfo: nil, repeats: false)
     }
 

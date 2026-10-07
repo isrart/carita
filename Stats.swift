@@ -23,7 +23,7 @@ enum History {
 
     static var calendar: Calendar {
         var c = Calendar(identifier: .gregorian)
-        c.locale = Locale(identifier: "es_ES")
+        c.locale = Locale(identifier: appLanguage == "en" ? "en_US" : "es_ES")
         c.firstWeekday = 2   // la semana empieza el lunes
         return c
     }
@@ -116,8 +116,9 @@ enum History {
 
 final class StatsModel: ObservableObject {
     enum Period: String, CaseIterable, Identifiable {
-        case semana = "Esta semana", mes = "Este mes"
+        case semana, mes
         var id: String { rawValue }
+        var label: String { self == .semana ? T("Esta semana", "This week") : T("Este mes", "This month") }
     }
     struct ProjectHours: Identifiable { let id: String; let hours: Double; let bajovelo: Bool }
     struct DayCount: Identifiable { let id = UUID(); let day: Date; let kind: String; let count: Int }
@@ -162,8 +163,8 @@ final class StatsModel: ObservableObject {
             let counts = Dictionary(grouping: events.filter { $0.ev == ev }) { cal.startOfDay(for: $0.t) }.mapValues(\.count)
             return allDays.map { DayCount(day: $0, kind: kind, count: counts[$0] ?? 0) }
         }
-        tasks = perDay("done", "Tareas")
-        deploys = perDay("shipped", "En producción") + perDay("deploy_fallido", "Fallidos")
+        tasks = perDay("done", T("Tareas", "Tasks"))
+        deploys = perDay("shipped", T("En producción", "Shipped")) + perDay("deploy_fallido", T("Fallidos", "Failed"))
         shipped = events.filter { $0.ev == "shipped" }.count
         failed = events.filter { $0.ev == "deploy_fallido" }.count
         breaksAsked = events.filter { $0.ev == "stretch" }.count
@@ -192,59 +193,59 @@ struct StatsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Periodo", selection: $model.period) {
-                    ForEach(StatsModel.Period.allCases) { Text($0.rawValue).tag($0) }
+                Picker(T("Periodo", "Period"), selection: $model.period) {
+                    ForEach(StatsModel.Period.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
             } footer: {
-                if model.empty { Hint("Aún no hay datos de este periodo: se apuntan a partir de ahora, cada vez que trabajas con Claude Code.") }
+                if model.empty { Hint(T("Aún no hay datos de este periodo: se apuntan a partir de ahora, cada vez que trabajas con Claude Code.", "No data for this period yet: it's recorded from now on, every time you work with Claude Code.")) }
             }
 
-            Section("Horas por proyecto") {
+            Section(T("Horas por proyecto", "Hours per project")) {
                 if model.projects.isEmpty {
-                    Text("Nada todavía").foregroundColor(.secondary)
+                    Text(T("Nada todavía", "Nothing yet")).foregroundColor(.secondary)
                 } else {
                     Chart(model.projects) { p in
-                        BarMark(x: .value("Horas", p.hours), y: .value("Proyecto", p.id))
+                        BarMark(x: .value(T("Horas", "Hours"), p.hours), y: .value(T("Proyecto", "Project"), p.id))
                             .foregroundStyle(p.bajovelo || !model.bajovelo ? clay : Color.secondary.opacity(0.6))
                             .annotation(position: .trailing) { Text(hoursText(p.hours)).font(.caption).foregroundColor(.secondary) }
                     }
                     .chartXAxis(.hidden)
                     .frame(height: CGFloat(max(1, model.projects.count)) * 28 + 8)
-                    Hint((model.bajovelo ? "En color, los proyectos de Bajovelo. " : "") + "Cuenta cada pregunta hasta su respuesta y los ratos sin pausas de más de 5 minutos.")
+                    Hint((model.bajovelo ? T("En color, los proyectos de Bajovelo. ", "Bajovelo projects in color. ") : "") + T("Cuenta cada pregunta hasta su respuesta y los ratos sin pausas de más de 5 minutos.", "Counts each prompt until its answer, plus stretches without breaks longer than 5 minutes."))
                 }
             }
 
-            Section("Tareas terminadas") {
+            Section(T("Tareas terminadas", "Finished tasks")) {
                 Chart(model.tasks) { d in
-                    BarMark(x: .value("Día", d.day, unit: .day), y: .value("Tareas", d.count)).foregroundStyle(clay)
+                    BarMark(x: .value(T("Día", "Day"), d.day, unit: .day), y: .value(T("Tareas", "Tasks"), d.count)).foregroundStyle(clay)
                 }
                 .chartXAxis { xAxis }
                 .frame(height: 130)
             }
 
             Section("Deploys") {
-                LabeledContent("En producción", value: "\(model.shipped)")
-                LabeledContent("Fallidos", value: "\(model.failed)")
+                LabeledContent(T("En producción", "Shipped"), value: "\(model.shipped)")
+                LabeledContent(T("Fallidos", "Failed"), value: "\(model.failed)")
                 if model.shipped + model.failed > 0 {
                     Chart(model.deploys) { d in
-                        BarMark(x: .value("Día", d.day, unit: .day), y: .value("Deploys", d.count))
-                            .foregroundStyle(by: .value("Resultado", d.kind))
+                        BarMark(x: .value(T("Día", "Day"), d.day, unit: .day), y: .value("Deploys", d.count))
+                            .foregroundStyle(by: .value(T("Resultado", "Result"), d.kind))
                     }
-                    .chartForegroundStyleScale(["En producción": Color.green, "Fallidos": Color.red])
+                    .chartForegroundStyleScale([T("En producción", "Shipped"): Color.green, T("Fallidos", "Failed"): Color.red])
                     .chartXAxis { xAxis }
                     .frame(height: 110)
                 }
             }
 
-            Section("Descansos") {
-                LabeledContent("Te pidió que te estiraras", value: "\(model.breaksAsked)")
-                LabeledContent("Lo ignoraste (antifaz)", value: "\(model.breaksIgnored)")
+            Section(T("Descansos", "Breaks")) {
+                LabeledContent(T("Te pidió que te estiraras", "Asked you to stretch"), value: "\(model.breaksAsked)")
+                LabeledContent(T("Lo ignoraste (antifaz)", "You ignored it (sleep mask)"), value: "\(model.breaksIgnored)")
             }
         }
         .formStyle(.grouped)
-        .environment(\.locale, Locale(identifier: "es_ES"))
+        .environment(\.locale, Locale(identifier: appLanguage == "en" ? "en_US" : "es_ES"))
         .frame(width: 560, height: 620)
     }
 }
@@ -258,12 +259,13 @@ final class StatsWindow {
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 620),
                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            w.title = "Estadísticas de Carita"
+            
             w.isReleasedWhenClosed = false
             w.contentViewController = NSHostingController(rootView: StatsView(model: model))
             w.center()
             window = w
         }
+        window?.title = T("Estadísticas de Carita", "Carita Statistics")   // por si has cambiado de idioma
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

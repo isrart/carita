@@ -35,6 +35,7 @@ struct Cumple: Codable, Hashable, Identifiable {
 
 struct Config: Codable, Equatable {
     var nombre = Config.nombreDelMac
+    var idioma = "auto"          // «auto» (el del Mac), «es» o «en»
     var packBajovelo = false     // disfraces de Bajovelo (boina, vino, cava): un pack opcional
     var tamano: Double = 1
     var disfraz = "auto"
@@ -82,11 +83,11 @@ struct Config: Codable, Equatable {
         ShapeRule(palabras: ["claude", "agent", "mcp", "skill", "prompt"], forma: "pelusita"),
         ShapeRule(palabras: ["blog", "reel", "insta", "video", "redes", "social", "articulo"], forma: "mandarina"),
         ShapeRule(palabras: ["app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend"], forma: "alubia"),
-        ShapeRule(palabras: ["notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox"], forma: "gotita"),
+        ShapeRule(palabras: ["notas", "notes", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox"], forma: "gotita"),
     ]
 
     enum CodingKeys: String, CodingKey {
-        case forma, formas, packBajovelo
+        case forma, formas, packBajovelo, idioma
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
         case enviarAlHablar
@@ -114,6 +115,7 @@ struct Config: Codable, Equatable {
         pausaMinutos = v(.pausaMinutos, d.pausaMinutos)
         disfraces = v(.disfraces, d.disfraces)
         packBajovelo = v(.packBajovelo, d.packBajovelo)
+        idioma = v(.idioma, d.idioma)
         forma = v(.forma, d.forma)
         formas = v(.formas, d.formas)
         noMolestarCamara = v(.noMolestarCamara, d.noMolestarCamara)
@@ -229,26 +231,27 @@ final class SettingsWindow {
         if window == nil {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            w.title = "Ajustes de Carita"
+            
             w.isReleasedWhenClosed = false
             w.contentViewController = NSHostingController(rootView: SettingsView(store: store, actions: actions))
             w.center()
             window = w
         }
+        window?.title = T("Ajustes de Carita", "Carita Settings")   // por si has cambiado de idioma
         NSApp.activate(ignoringOtherApps: true)   // la app es LSUIElement: si no, la ventana sale detrás
         window?.makeKeyAndOrderFront(nil)
     }
 }
 
-let shapeNames: [(String, String)] = [
-    ("Redondita", "redondita"), ("Alubia alta", "alubia"), ("Gotita", "gotita"),
-    ("Mandarina con flor", "mandarina"), ("Pelusita", "pelusita"),
-]
+var shapeNames: [(String, String)] { [
+    (T("Redondita", "Round"), "redondita"), (T("Alubia alta", "Tall bean"), "alubia"), (T("Gotita", "Little drop"), "gotita"),
+    (T("Mandarina con flor", "Tangerine with a flower"), "mandarina"), (T("Pelusita", "Fluffball"), "pelusita"),
+] }
 
-let costumeNames: [(String, String)] = [
-    ("Sin disfraz", "none"), ("Bajovelo (boina y copa)", "vino"), ("Blog (pluma y cuaderno)", "vinoblog"),
-    ("Recursos (guía de vino)", "vinorecursos"), ("Trivia (cartel ?)", "vinotrivia"), ("Reels (móvil grabando)", "vinoreels"),
-]
+var costumeNames: [(String, String)] { [
+    (T("Sin disfraz", "No costume"), "none"), (T("Bajovelo (boina y copa)", "Bajovelo (beret and glass)"), "vino"), (T("Blog (pluma y cuaderno)", "Blog (quill and notebook)"), "vinoblog"),
+    (T("Recursos (guía de vino)", "Resources (wine guide)"), "vinorecursos"), (T("Trivia (cartel ?)", "Trivia (? sign)"), "vinotrivia"), (T("Reels (móvil grabando)", "Reels (phone recording)"), "vinoreels"),
+] }
 
 struct SettingsView: View {
     @ObservedObject var store: ConfigStore
@@ -256,8 +259,10 @@ struct SettingsView: View {
     @State private var tab = 0
 
     // con TabView, en ventanas estrechas macOS esconde las pestañas tras un «»»: barra propia, siempre visible
-    static let tabs: [(String, String)] = [("General", "gearshape"), ("Voz", "speaker.wave.2"), ("Descanso", "cup.and.saucer"),
-                                           ("Aspecto", "theatermasks"), ("Cumpleaños", "gift"), ("No molestar", "moon"), ("Atajos", "keyboard")]
+    static var tabs: [(String, String)] { [("General", "gearshape"), (T("Voz", "Voice"), "speaker.wave.2"),
+                                           (T("Descanso", "Breaks"), "cup.and.saucer"), (T("Aspecto", "Look"), "theatermasks"),
+                                           (T("Cumpleaños", "Birthdays"), "gift"), (T("No molestar", "Do not disturb"), "moon"),
+                                           (T("Atajos", "Shortcuts"), "keyboard")] }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -330,28 +335,35 @@ struct GeneralTab: View {
     var body: some View {
         Form {
             Section {
-                TextField("Tu nombre", text: $store.c.nombre)
+                TextField(T("Tu nombre", "Your name"), text: $store.c.nombre)
             } footer: {
-                Hint("Así te llama cuando te necesita o se despide.")
+                Hint(T("Así te llama cuando te necesita o se despide.", "What it calls you when it needs you or says goodbye."))
             }
             Section {
-                ValueSlider(title: "Tamaño", value: $store.c.tamano, range: 0.6...1.6, step: 0.05) { "\(Int(($0 * 100).rounded())) %" }
-                Toggle("Ir a buscarme cuando me necesita", isOn: $store.c.irABuscarte)
+                Picker(T("Idioma", "Language"), selection: $store.c.idioma) {
+                    Text(T("El del Mac", "Same as the Mac")).tag("auto")
+                    Text("Español").tag("es")
+                    Text("English").tag("en")
+                }
             }
             Section {
-                LabeledContent("Lo que dice") {
-                    Button("Editar frases…") { actions.editPhrases() }
+                ValueSlider(title: T("Tamaño", "Size"), value: $store.c.tamano, range: 0.6...1.6, step: 0.05) { "\(Int(($0 * 100).rounded())) %" }
+                Toggle(T("Ir a buscarme cuando me necesita", "Come find me when it needs me"), isOn: $store.c.irABuscarte)
+            }
+            Section {
+                LabeledContent(T("Lo que dice", "What it says")) {
+                    Button(T("Editar frases…", "Edit lines…")) { actions.editPhrases() }
                 }
             } footer: {
-                Hint("Abre ~/.carita/frases.json (lo crea con las frases de serie si no existe). Cada estado que pongas sustituye a sus frases; con \"+done\" añades en vez de sustituir. Al guardar, la siguiente frase ya es la nueva.")
+                Hint(T("Abre ~/.carita/frases.json (lo crea con las frases de serie si no existe). Cada estado que pongas sustituye a sus frases; con \"+done\" añades en vez de sustituir. Al guardar, la siguiente frase ya es la nueva.", "Opens ~/.carita/frases.json (creates it with the built-in lines if missing). Each state you add replaces its lines; with \"+done\" you add instead of replacing. As soon as you save, the next line is the new one."))
             }
             Section {
-                Toggle("Buscar actualizaciones una vez al día", isOn: $store.c.buscarActualizaciones)
+                Toggle(T("Buscar actualizaciones una vez al día", "Check for updates once a day"), isOn: $store.c.buscarActualizaciones)
             } footer: {
-                Hint("Pregunta a GitHub por la última versión (es lo único que sale del Mac). Si hay una nueva, te lo dice en el bocadillo.")
+                Hint(T("Pregunta a GitHub por la última versión (es lo único que sale del Mac). Si hay una nueva, te lo dice en el bocadillo.", "Asks GitHub for the latest version (the only thing that leaves your Mac). If there's a new one, it tells you in the speech bubble."))
             }
             Section {
-                Toggle("Abrir al iniciar sesión", isOn: Binding(get: { login }, set: { on in
+                Toggle(T("Abrir al iniciar sesión", "Open at login"), isOn: Binding(get: { login }, set: { on in
                     let service = SMAppService.mainApp
                     do { if on { try service.register() } else { try service.unregister() } } catch { NSSound.beep() }
                     login = service.status == .enabled
@@ -366,9 +378,14 @@ struct VoiceTab: View {
     @ObservedObject var store: ConfigStore
     let actions: SettingsActions
 
+    /// ¿Es una voz del idioma de la app? (en español, solo de España; en inglés, cualquier inglés)
+    static func matchesLanguage(_ v: AVSpeechSynthesisVoice) -> Bool {
+        appLanguage == "en" ? v.language.hasPrefix("en") : v.language == "es-ES"
+    }
+
     static func voices() -> [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language == "es-ES" }
+            .filter(matchesLanguage)
             .sorted { ($0.quality.rawValue, $1.name) > ($1.quality.rawValue, $0.name) }
     }
     /// «Mónica (Enhanced)» → «Mónica»: la calidad ya la ponemos nosotros, en español.
@@ -377,46 +394,46 @@ struct VoiceTab: View {
     }
     static func qualityName(_ v: AVSpeechSynthesisVoice) -> String {
         switch v.quality {
-        case .premium: return "prémium"
-        case .enhanced: return "mejorada"
-        default: return "básica"
+        case .premium: return T("prémium", "premium")
+        case .enhanced: return T("mejorada", "enhanced")
+        default: return T("básica", "basic")
         }
     }
 
     var body: some View {
         Form {
             Section {
-                Toggle("Leer mis respuestas en voz alta", isOn: $store.c.leerRespuestas)
-                Toggle("Avisos con voz (¡Hecho!, te necesito…)", isOn: $store.c.avisosVoz)
+                Toggle(T("Leer mis respuestas en voz alta", "Read my answers out loud"), isOn: $store.c.leerRespuestas)
+                Toggle(T("Avisos con voz (¡Hecho!, te necesito…)", "Spoken alerts (Done!, I need you…)"), isOn: $store.c.avisosVoz)
             }
             Section {
-                Toggle("Enviar directamente al soltar (pulsa Intro por ti)", isOn: $store.c.enviarAlHablar)
+                Toggle(T("Enviar directamente al soltar (pulsa Intro por ti)", "Send right away when released (presses Return for you)"), isOn: $store.c.enviarAlHablar)
             } header: {
-                Text("Cuando le hablas")
+                Text(T("Cuando le hablas", "When you talk to it"))
             } footer: {
-                Hint("Desactivado, deja el texto escrito en la terminal para que lo revises y lo envíes tú.")
+                Hint(T("Desactivado, deja el texto escrito en la terminal para que lo revises y lo envíes tú.", "When off, it leaves the text typed in the terminal so you can check it and send it yourself."))
             }
             Section {
-                Picker("Voz", selection: $store.c.voz) {
-                    Text("Automática (la mejor que tengas)").tag("")
+                Picker(T("Voz", "Voice"), selection: $store.c.voz) {
+                    Text(T("Automática (la mejor que tengas)", "Automatic (the best one you have)")).tag("")
                     Divider()
                     ForEach(VoiceTab.voices(), id: \.identifier) { v in
                         Text("\(VoiceTab.displayName(v)) · \(VoiceTab.qualityName(v))").tag(v.identifier)
                     }
                 }
-                ValueSlider(title: "Velocidad", value: $store.c.velocidad, range: 0.3...0.7) { String(format: "%.2f", $0) }
-                ValueSlider(title: "Tono", value: $store.c.tono, range: 0.7...1.6) { String(format: "%.2f", $0) }
+                ValueSlider(title: T("Velocidad", "Speed"), value: $store.c.velocidad, range: 0.3...0.7) { String(format: "%.2f", $0) }
+                ValueSlider(title: T("Tono", "Pitch"), value: $store.c.tono, range: 0.7...1.6) { String(format: "%.2f", $0) }
                 HStack {
-                    Button("Valores de serie") {
+                    Button(T("Valores de serie", "Defaults")) {
                         store.c.velocidad = Config().velocidad
                         store.c.tono = Config().tono
                     }
                     Spacer()
-                    Button { actions.testVoice() } label: { Label("Probar", systemImage: "play.fill") }
+                    Button { actions.testVoice() } label: { Label(T("Probar", "Try it"), systemImage: "play.fill") }
                         .buttonStyle(.borderedProminent)
                 }
             } footer: {
-                Hint("¿Suena robótica? Descarga una voz «mejorada» o «prémium»: Ajustes del Sistema → Accesibilidad → Contenido leído → Voz del sistema → Gestionar voces → Español (España).")
+                Hint(T("¿Suena robótica? Descarga una voz «mejorada» o «prémium»: Ajustes del Sistema → Accesibilidad → Contenido leído → Voz del sistema → Gestionar voces → Español (España).", "Sounds robotic? Download an “Enhanced” or “Premium” voice: System Settings → Accessibility → Spoken Content → System Voice → Manage Voices."))
             }
         }
         .formStyle(.grouped)
@@ -437,11 +454,11 @@ struct BreakTab: View {
     var body: some View {
         Form {
             Section {
-                minutes("Pedirte que te estires tras", $store.c.descansoMinutos, 15...240, step: 5)
-                minutes("Ponerse el antifaz si lo ignoras", $store.c.antifazMinutos, 1...60, step: 1)
-                minutes("Pausa que cuenta como descanso", $store.c.pausaMinutos, 1...30, step: 1)
+                minutes(T("Pedirte que te estires tras", "Ask you to stretch after"), $store.c.descansoMinutos, 15...240, step: 5)
+                minutes(T("Ponerse el antifaz si lo ignoras", "Put on the sleep mask if ignored"), $store.c.antifazMinutos, 1...60, step: 1)
+                minutes(T("Pausa que cuenta como descanso", "A pause that counts as a break"), $store.c.pausaMinutos, 1...30, step: 1)
             } footer: {
-                Hint("Cuenta el tiempo de trabajo seguido con Claude Code. Si paras el rato de la pausa, el contador vuelve a cero.")
+                Hint(T("Cuenta el tiempo de trabajo seguido con Claude Code. Si paras el rato de la pausa, el contador vuelve a cero.", "Counts continuous work time with Claude Code. If you stop for the length of the pause, it starts again from zero."))
             }
         }
         .formStyle(.grouped)
@@ -454,27 +471,27 @@ struct CostumeTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Pack Bajovelo (boina, vino y cava al desplegar)", isOn: Binding(
+                Toggle(T("Pack Bajovelo (boina, vino y cava al desplegar)", "Bajovelo pack (beret, wine and cava on deploys)"), isOn: Binding(
                     get: { store.c.packBajovelo },
                     set: { on in
                         store.c.packBajovelo = on
                         if on && store.c.disfraces.isEmpty { store.c.disfraces = Config.reglasDeSerie }
                     }))
             } footer: {
-                Hint("Disfraces según el subproyecto: boina granate y, en la mano, una copa, un cuaderno, una guía, un cartel o un móvil. Los deploys se celebran descorchando cava.")
+                Hint(T("Disfraces según el subproyecto: boina granate y, en la mano, una copa, un cuaderno, una guía, un cartel o un móvil. Los deploys se celebran descorchando cava.", "Costumes by subproject: a maroon beret and, in hand, a wine glass, a notebook, a guide, a sign or a phone. Deploys are celebrated by popping cava."))
             }
             if store.c.packBajovelo {
                 Section {
-                    Picker("Disfraz", selection: $store.c.disfraz) {
-                        Text("Automático (según el proyecto)").tag("auto")
+                    Picker(T("Disfraz", "Costume"), selection: $store.c.disfraz) {
+                        Text(T("Automático (según el proyecto)", "Automatic (by project)")).tag("auto")
                         Divider()
                         ForEach(costumeNames, id: \.1) { Text($0.0).tag($0.1) }
                     }
                 }
             }
             Section {
-                Picker("Forma", selection: $store.c.forma) {
-                    Text("Automática (según el proyecto)").tag("auto")
+                Picker(T("Forma", "Shape"), selection: $store.c.forma) {
+                    Text(T("Automática (según el proyecto)", "Automatic (by project)")).tag("auto")
                     Divider()
                     ForEach(shapeNames, id: \.1) { Text($0.0).tag($0.1) }
                 }
@@ -483,15 +500,15 @@ struct CostumeTab: View {
                 }
                 HStack {
                     Button { store.c.formas.append(ShapeRule(palabras: [], forma: "redondita")) } label: {
-                        Label("Añadir regla", systemImage: "plus")
+                        Label(T("Añadir regla", "Add rule"), systemImage: "plus")
                     }
                     Spacer()
-                    Button("Valores de serie") { store.c.formas = Config.formasDeSerie }
+                    Button(T("Valores de serie", "Defaults")) { store.c.formas = Config.formasDeSerie }
                 }
             } header: {
-                Text("Forma del bicho")
+                Text(T("Forma del bicho", "Shape of the critter"))
             } footer: {
-                Hint("Todas son Carita, en naranja. Igual que los disfraces: gana la primera regla con alguna palabra de la carpeta; en el archivo .carita también puedes poner una forma (p. ej., «blog alubia»).")
+                Hint(T("Todas son Carita, en naranja. Igual que los disfraces: gana la primera regla con alguna palabra de la carpeta; en el archivo .carita también puedes poner una forma (p. ej., «blog alubia»).", "They're all Carita, in orange. Like costumes: the first rule with a word in the folder wins; you can also put a shape in the .carita file (e.g. “blog alubia”)."))
             }
             if store.c.packBajovelo {
                 Section {
@@ -500,15 +517,15 @@ struct CostumeTab: View {
                     }
                     HStack {
                         Button { store.c.disfraces.append(CostumeRule(palabras: [], disfraz: "vino")) } label: {
-                            Label("Añadir regla", systemImage: "plus")
+                            Label(T("Añadir regla", "Add rule"), systemImage: "plus")
                         }
                         Spacer()
-                        Button("Valores de serie") { store.c.disfraces = Config.reglasDeSerie }
+                        Button(T("Valores de serie", "Defaults")) { store.c.disfraces = Config.reglasDeSerie }
                     }
                 } header: {
-                    Text("Palabras en la ruta del proyecto")
+                    Text(T("Palabras en la ruta del proyecto", "Words in the project path"))
                 } footer: {
-                    Hint("En automático gana la primera regla con alguna palabra que aparezca en la carpeta. Un archivo .carita en la raíz del proyecto manda sobre todo.")
+                    Hint(T("En automático gana la primera regla con alguna palabra que aparezca en la carpeta. Un archivo .carita en la raíz del proyecto manda sobre todo.", "In automatic mode, the first rule with a word found in the folder wins. A .carita file at the project root overrides everything."))
                 }
             }
         }
@@ -529,7 +546,7 @@ struct CostumeRow: View {
                     guard index < store.c.disfraces.count else { return }
                     store.c.disfraces[index].palabras = text.split(separator: ",")
                         .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
-                }), prompt: Text("palabras, separadas por comas"))
+                }), prompt: Text(T("palabras, separadas por comas", "words, separated by commas")))
                 .labelsHidden()
             Image(systemName: "arrow.right").foregroundColor(.secondary)
             Picker("", selection: Binding(
@@ -568,7 +585,7 @@ struct ShapeRow: View {
                     guard index < store.c.formas.count else { return }
                     store.c.formas[index].palabras = text.split(separator: ",")
                         .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
-                }), prompt: Text("palabras, separadas por comas"))
+                }), prompt: Text(T("palabras, separadas por comas", "words, separated by commas")))
                 .labelsHidden()
             Image(systemName: "arrow.right").foregroundColor(.secondary)
             Picker("", selection: Binding(
@@ -602,7 +619,7 @@ struct BirthdayTab: View {
             Section {
                 ForEach($store.c.cumples) { $c in
                     HStack {
-                        TextField("", text: $c.nombre, prompt: Text("Nombre")).labelsHidden()
+                        TextField("", text: $c.nombre, prompt: Text(T("Nombre", "Name"))).labelsHidden()
                         Picker("", selection: $c.dia) { ForEach(1...31, id: \.self) { Text("\($0)").tag($0) } }
                             .labelsHidden().frame(width: 64)
                         Picker("", selection: $c.mes) {
@@ -613,11 +630,11 @@ struct BirthdayTab: View {
                             .buttonStyle(.borderless)
                     }
                 }
-                Button { store.c.cumples.append(Cumple(nombre: "", dia: 1, mes: 1)) } label: { Label("Añadir cumpleaños", systemImage: "plus") }
+                Button { store.c.cumples.append(Cumple(nombre: "", dia: 1, mes: 1)) } label: { Label(T("Añadir cumpleaños", "Add birthday"), systemImage: "plus") }
             } header: {
-                Text("Cumpleaños")
+                Text(T("Cumpleaños", "Birthdays"))
             } footer: {
-                Hint("Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).")
+                Hint(T("Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).", "On that day they wear party hats and the first critter sings “Happy birthday” with their name (once)."))
             }
         }
         .formStyle(.grouped)
@@ -631,14 +648,14 @@ struct DndTab: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Esconderse al encender la cámara", isOn: $store.c.noMolestarCamara)
-                Toggle("Esconderse al compartir pantalla", isOn: $store.c.noMolestarPantalla)
+                Toggle(T("Esconderse al encender la cámara", "Hide when the camera turns on"), isOn: $store.c.noMolestarCamara)
+                Toggle(T("Esconderse al compartir pantalla", "Hide when sharing the screen"), isOn: $store.c.noMolestarPantalla)
             } footer: {
-                Hint("La cámara vale para cualquier videollamada. Compartir pantalla: Zoom, Compartir pantalla del Mac y pantalla duplicada (AirPlay o proyector); Meet o Teams en el navegador sin cámara no se pueden detectar, ni el modo concentración.")
+                Hint(T("La cámara vale para cualquier videollamada. Compartir pantalla: Zoom, Compartir pantalla del Mac y pantalla duplicada (AirPlay o proyector); Meet o Teams en el navegador sin cámara no se pueden detectar, ni el modo concentración.", "The camera works for any video call. Screen sharing: Zoom, macOS Screen Sharing and mirrored displays (AirPlay or a projector); Meet or Teams in the browser without the camera can't be detected, nor can Focus modes."))
             }
             Section {
                 TimelineView(.periodic(from: .now, by: 2)) { _ in
-                    LabeledContent("Ahora mismo", value: actions.dndStatus())
+                    LabeledContent(T("Ahora mismo", "Right now"), value: actions.dndStatus())
                 }
             }
         }
@@ -653,14 +670,14 @@ struct ShortcutTab: View {
     var body: some View {
         Form {
             Section {
-                ShortcutRecorder(title: "Mostrar u ocultar", value: $store.c.atajoMostrar, other: store.c.atajoCallar,
+                ShortcutRecorder(title: T("Mostrar u ocultar", "Show or hide"), value: $store.c.atajoMostrar, other: store.c.atajoCallar,
                                  fallback: Shortcut.toggleDefault, actions: actions)
-                ShortcutRecorder(title: "Callarla (y silenciar 1 hora)", value: $store.c.atajoCallar, other: store.c.atajoMostrar,
+                ShortcutRecorder(title: T("Callarla (y silenciar 1 hora)", "Silence it (and mute for 1 hour)"), value: $store.c.atajoCallar, other: store.c.atajoMostrar,
                                  fallback: Shortcut.muteDefault, actions: actions)
-                ShortcutRecorder(title: "Hablarle (mantenlo pulsado)", value: $store.c.atajoHablar, other: store.c.atajoCallar,
+                ShortcutRecorder(title: T("Hablarle (mantenlo pulsado)", "Talk to it (hold it down)"), value: $store.c.atajoHablar, other: store.c.atajoCallar,
                                  fallback: Shortcut.talkDefault, actions: actions)
             } footer: {
-                Hint("Para hablarle, mantén pulsado su atajo mientras hablas: lo que digas se escribe en la terminal de la sesión que estuvo activa la última, sin pulsar Intro. Funcionan con cualquier app delante. Haz clic en el atajo y pulsa la combinación nueva (con ⌘, ⌥ o ⌃); Esc cancela.")
+                Hint(T("Para hablarle, mantén pulsado su atajo mientras hablas: lo que digas se escribe en la terminal de la sesión que estuvo activa la última, sin pulsar Intro. Funcionan con cualquier app delante. Haz clic en el atajo y pulsa la combinación nueva (con ⌘, ⌥ o ⌃); Esc cancela.", "To talk to it, hold its shortcut while you speak: what you say is typed into the terminal of the most recently active session. They work with any app in front and need no permissions. Click a shortcut and press the new combination (with ⌘, ⌥ or ⌃); Esc cancels."))
             }
         }
         .formStyle(.grouped)
@@ -681,8 +698,8 @@ struct ShortcutRecorder: View {
 
     var warning: String? {
         guard let sc = current else { return nil }
-        if value == other { return "Es el mismo que el otro atajo." }
-        if sc.clashesWithSystem { return "Ese atajo ya lo usa el Mac; elige otro." }
+        if value == other { return T("Es el mismo que el otro atajo.", "It's the same as the other shortcut.") }
+        if sc.clashesWithSystem { return T("Ese atajo ya lo usa el Mac; elige otro.", "macOS already uses that shortcut; pick another one.") }
         return nil
     }
 
@@ -690,7 +707,7 @@ struct ShortcutRecorder: View {
         LabeledContent {
             HStack(spacing: 6) {
                 Button { recording ? stop() : start() } label: {
-                    Text(recording ? "Pulsa el atajo…" : (current?.display ?? "Sin atajo"))
+                    Text(recording ? T("Pulsa el atajo…", "Press the shortcut…") : (current?.display ?? T("Sin atajo", "No shortcut")))
                         .font(.system(.body, design: .rounded).weight(.semibold))
                         .frame(minWidth: 110)
                 }
@@ -698,7 +715,7 @@ struct ShortcutRecorder: View {
                 .tint(recording ? .accentColor : nil)
                 Menu {
                     Button("De serie (\(fallback.display))") { stop(); value = fallback.array }
-                    Button("Sin atajo") { stop(); value = [] }
+                    Button(T("Sin atajo", "No shortcut")) { stop(); value = [] }
                 } label: { Image(systemName: "ellipsis.circle") }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -739,7 +756,7 @@ extension Calendar {
     /// «enero», «febrero»… en español.
     func monthSymbols(es m: Int) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "es_ES")
+        f.locale = Locale(identifier: appLanguage == "en" ? "en_US" : "es_ES")
         return f.standaloneMonthSymbols[m - 1]
     }
 }

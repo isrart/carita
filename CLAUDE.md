@@ -1,8 +1,8 @@
 # Carita
 
-App de macOS que pone cara a Claude Code: un bichito flotante que reacciona a lo que hace Claude Code en la terminal (leer, escribir, ejecutar, deploys, pedir permiso…), lee en voz alta un resumen de cada respuesta y se disfraza según el subproyecto de Bajovelo. Es de uso personal de Isra (macOS, trabaja con Vue/Astro/Supabase, todo bajo el paraguas Bajovelo).
+App de macOS que pone cara a Claude Code: un bichito flotante (uno por sesión) que reacciona a lo que hace Claude Code en la terminal (leer, escribir, ejecutar, deploys, pedir permiso…), lee en voz alta un resumen de cada respuesta y escucha lo que le dices. Empezó como herramienta de Isra para Bajovelo y desde la 2.0 es para cualquiera: lo de Bajovelo es un pack opcional. Repo público: github.com/isrart/carita.
 
-**Idioma:** todo lo que ve u oye el usuario (textos, menús, frases, README) va en español de España, tono cercano y gamberro. Los comentarios del código también en español.
+**Idioma:** todo lo que ve u oye el usuario va en **español de España y en inglés**, tono cercano y gamberro en los dos. En Swift, cada texto con `T("español", "English")` (idioma en `appLanguage`: ajuste `idioma` o el del Mac); en la cara, `FRASES_ES` y `FRASES_EN`; los permisos de macOS, en los `InfoPlist.strings` que crea `build.sh`. README en inglés (`README.md`) y español (`README.es.md`). Los comentarios del código y los commits, en español.
 
 ## Cómo está montada
 
@@ -69,6 +69,7 @@ Carita es para cualquiera; lo de Bajovelo (boina, vino, cava, frases `…Vino`) 
 
 ## Versiones y commits
 
+- La app es `io.github.isrart.carita` (hasta la 1.13 fue `com.bajovelo.carita`; el actualizador acepta las dos si vienen con el mismo certificado).
 - **Firma:** `build.sh` firma con «Carita (firma propia)», un certificado autofirmado que está en el llavero `~/Library/Keychains/carita-firma.keychain-db` (contraseña en `~/.config/carita/keychain.pass`, nunca en el repo); si no está, firma ad hoc. En GitHub Actions sale de los secretos `CARITA_P12` y `CARITA_P12_PASS`; el certificado público está en `.github/carita-firma.pem`. Con la misma identidad, macOS conserva los permisos (TCC) entre versiones, y el actualizador rechaza apps firmadas con otro certificado.
 - Para publicar: sube `VERSION`, commit, `git tag vX.Y.Z && git push --tags`. El workflow comprueba que la etiqueta coincide con `VERSION` y publica la Release con `Carita.zip`; las apps instaladas la ven en «Buscar actualizaciones».
 - Versión en `VERSION` (semver). Súbela en cada mejora que llegue al usuario.

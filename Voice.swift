@@ -12,7 +12,7 @@ final class Listener: NSObject {
     var onText: ((String) -> Void)?       // lo que va entendiendo
     var onDone: ((String) -> Void)?       // el texto final (puede ir vacío)
     var onProblem: ((String) -> Void)?
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "es-ES"))
+    private var recognizer: SFSpeechRecognizer?
     private let engine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
@@ -32,15 +32,15 @@ final class Listener: NSObject {
                 self?.performSelector(onMainThread: #selector(Listener.permissionsChanged), with: nil, waitUntilDone: false)
             }
         default:
-            fail("No tengo permiso para entenderte: Ajustes del Sistema → Privacidad y seguridad → Reconocimiento de voz → Carita")
+            fail(T("No tengo permiso para entenderte: Ajustes del Sistema → Privacidad y seguridad → Reconocimiento de voz → Carita", "I'm not allowed to understand you: System Settings → Privacy & Security → Speech Recognition → Carita"))
         }
     }
 
     @objc func permissionsChanged() {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            return fail("Sin permiso de reconocimiento de voz no te puedo entender")
+            return fail(T("Sin permiso de reconocimiento de voz no te puedo entender", "Without speech recognition permission I can't understand you"))
         }
-        if held { checkMicrophone() } else { onProblem?("¡Gracias! Ya puedes hablarme: mantén el atajo y habla") }
+        if held { checkMicrophone() } else { onProblem?(T("¡Gracias! Ya puedes hablarme: mantén el atajo y habla", "Thanks! You can talk to me now: hold the shortcut and speak")) }
     }
 
     private func checkMicrophone() {
@@ -52,20 +52,21 @@ final class Listener: NSObject {
                 self?.performSelector(onMainThread: #selector(Listener.microphoneChanged), with: nil, waitUntilDone: false)
             }
         default:
-            fail("No tengo permiso para el micrófono: Ajustes del Sistema → Privacidad y seguridad → Micrófono → Carita")
+            fail(T("No tengo permiso para el micrófono: Ajustes del Sistema → Privacidad y seguridad → Micrófono → Carita", "I'm not allowed to use the microphone: System Settings → Privacy & Security → Microphone → Carita"))
         }
     }
 
     @objc func microphoneChanged() {
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
-            return fail("Sin micrófono no te oigo")
+            return fail(T("Sin micrófono no te oigo", "I can't hear you without the microphone"))
         }
-        if held { begin() } else { onProblem?("¡Gracias! Ya puedes hablarme: mantén el atajo y habla") }
+        if held { begin() } else { onProblem?(T("¡Gracias! Ya puedes hablarme: mantén el atajo y habla", "Thanks! You can talk to me now: hold the shortcut and speak")) }
     }
 
     private func begin() {
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: appLanguage == "en" ? "en-US" : "es-ES"))
         guard let recognizer = recognizer, recognizer.isAvailable else {
-            return fail("El reconocimiento de voz en español no está disponible ahora mismo")
+            return fail(T("El reconocimiento de voz en español no está disponible ahora mismo", "English speech recognition isn't available right now"))
         }
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
@@ -79,7 +80,7 @@ final class Listener: NSObject {
         engine.prepare()
         do { try engine.start() } catch {
             input.removeTap(onBus: 0)
-            return fail("No puedo usar el micrófono: \(error.localizedDescription)")
+            return fail(T("No puedo usar el micrófono: \(error.localizedDescription)", "I can't use the microphone: \(error.localizedDescription)"))
         }
         running = true
         // el reconocedor llama en la cola principal (su `queue` por defecto)
@@ -181,7 +182,7 @@ final class Typist: NSObject {
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         guard AXIsProcessTrustedWithOptions(opts) else {
             savedClipboard = nil   // el texto se queda en el portapapeles para que lo pegues tú
-            onMessage?("Te lo dejo copiado: pégalo con ⌘V. Si me das permiso de Accesibilidad, lo escribo yo")
+            onMessage?(T("Te lo dejo copiado: pégalo con ⌘V. Si me das permiso de Accesibilidad, lo escribo yo", "It's on your clipboard: paste it with ⌘V. Give me Accessibility permission and I'll type it myself"))
             return
         }
         let src = CGEventSource(stateID: .combinedSessionState)
@@ -194,9 +195,9 @@ final class Typist: NSObject {
         if send {
             // un respiro para que la terminal reciba el pegado antes del Intro
             Timer.scheduledTimer(timeInterval: 0.25, target: self, selector: #selector(pressReturn), userInfo: nil, repeats: false)
-            onMessage?("¡Enviado!")
+            onMessage?(T("¡Enviado!", "Sent!"))
         } else {
-            onMessage?("Escrito. Revísalo y dale a Intro")
+            onMessage?(T("Escrito. Revísalo y dale a Intro", "Typed. Check it and press Return"))
         }
         Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(restoreClipboard), userInfo: nil, repeats: false)
     }

@@ -8,6 +8,14 @@ import ServiceManagement
 import CoreMediaIO
 import Carbon.HIToolbox
 
+/// Idioma de lo que se ve y se oye: «es» o «en» (Ajustes → General; por defecto, el del Mac).
+var appLanguage = "es"
+func T(_ es: String, _ en: String) -> String { appLanguage == "en" ? en : es }
+func resolveLanguage(_ setting: String) -> String {
+    if setting == "es" || setting == "en" { return setting }
+    return (Locale.preferredLanguages.first ?? "es").hasPrefix("es") ? "es" : "en"
+}
+
 /// Para pruebas, `CARITA_DIR=/otra/carpeta` aísla la app de las sesiones reales de Claude Code.
 let stateDir = ProcessInfo.processInfo.environment["CARITA_DIR"]
     ?? (NSHomeDirectory() as NSString).appendingPathComponent(".carita")
@@ -268,9 +276,9 @@ final class Interruptions: NSObject {
 
     func screenShared() -> String? {
         let names = runningProcessNames()
-        if names.contains("CptHost") { return "Zoom compartiendo pantalla" }
-        if names.contains("screensharingd") { return "Compartir pantalla del Mac" }
-        if CGDisplayIsInMirrorSet(CGMainDisplayID()) != 0 { return "pantalla duplicada" }
+        if names.contains("CptHost") { return T("Zoom compartiendo pantalla", "Zoom screen sharing") }
+        if names.contains("screensharingd") { return T("Compartir pantalla del Mac", "macOS Screen Sharing") }
+        if CGDisplayIsInMirrorSet(CGMainDisplayID()) != 0 { return T("pantalla duplicada", "mirrored display") }
         return nil
     }
 
@@ -482,12 +490,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var lastPhrasesData: Data?
     var startedUp = false
 
-    let testStates: [(String, String)] = [
-        ("Hola", "hello"), ("Pensando", "thinking"), ("Leyendo", "reading"), ("Escribiendo", "writing"),
-        ("Ejecutando", "running"), ("Desplegando", "deploying"), ("¡En producción!", "shipped"),
-        ("Investigando", "browsing"), ("Delegando", "delegating"), ("Te necesita", "asking"),
-        ("¡Hecho!", "done"), ("Descanso", "stretch"), ("Aburrido", "sleepy"), ("Dormido", "sleeping"),
-    ]
+    var testStates: [(String, String)] { [
+        (T("Hola", "Hello"), "hello"), (T("Pensando", "Thinking"), "thinking"), (T("Leyendo", "Reading"), "reading"),
+        (T("Escribiendo", "Writing"), "writing"), (T("Ejecutando", "Running"), "running"), (T("Desplegando", "Deploying"), "deploying"),
+        (T("¡En producción!", "Shipped!"), "shipped"), (T("Investigando", "Browsing"), "browsing"), (T("Delegando", "Delegating"), "delegating"),
+        (T("Te necesita", "Needs you"), "asking"), (T("¡Hecho!", "Done!"), "done"), (T("Descanso", "Stretch"), "stretch"),
+        (T("Aburrido", "Bored"), "sleepy"), (T("Dormido", "Asleep"), "sleeping"),
+    ] }
 
     let store = ConfigStore()
     let settingsWindow = SettingsWindow()
@@ -532,31 +541,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var talkShortcut: Shortcut? { Shortcut(array: cfg.atajoHablar) }
     /// Por qué está en «no molestar» ahora mismo (nil si no lo está).
     var dndReason: String? {
-        if dndCamera && interruptions.camera { return "cámara encendida" }
+        if dndCamera && interruptions.camera { return T("cámara encendida", "camera on") }
         if dndScreen, let s = interruptions.sharing { return s }
         return nil
     }
     var wasAway = false
     var quiet: Bool { muted || away }
 
-    /// La voz elegida en Ajustes o, si no, la mejor en español de España que tengas instalada.
+    /// La voz elegida en Ajustes (si es del idioma de la app) o, si no, la mejor que tengas instalada:
+    /// en español, de España (mejor Mónica); en inglés, cualquier inglés (mejor de EE. UU.).
     var voice: AVSpeechSynthesisVoice? {
-        if !cfg.voz.isEmpty, let v = AVSpeechSynthesisVoice(identifier: cfg.voz) { return v }
+        if !cfg.voz.isEmpty, let v = AVSpeechSynthesisVoice(identifier: cfg.voz), VoiceTab.matchesLanguage(v) { return v }
         return bestVoice
     }
-    lazy var bestVoice: AVSpeechSynthesisVoice? = {
+    var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
+    var bestVoice: AVSpeechSynthesisVoice? {
+        if let v = voiceCache[appLanguage] { return v }
         let novelty = ["eloquence", "speech.synthesis.voice"]
         let candidates = AVSpeechSynthesisVoice.speechVoices().filter { v in
-            v.language == "es-ES" && !novelty.contains { v.identifier.lowercased().contains($0) }
+            VoiceTab.matchesLanguage(v) && !novelty.contains { v.identifier.lowercased().contains($0) }
         }
         func score(_ v: AVSpeechSynthesisVoice) -> Int {
-            let preferred = v.name.contains("Mónica") || v.name.contains("Monica") ? 1 : 0
+            let preferred = appLanguage == "en" ? (v.language == "en-US" ? 1 : 0)
+                : (v.name.contains("Mónica") || v.name.contains("Monica") ? 1 : 0)
             return v.quality.rawValue * 10 + preferred
         }
-        return candidates.max { score($0) < score($1) } ?? AVSpeechSynthesisVoice(language: "es-ES")
-    }()
+        let best = candidates.max { score($0) < score($1) } ?? AVSpeechSynthesisVoice(language: appLanguage == "en" ? "en-US" : "es-ES")
+        if let b = best { voiceCache[appLanguage] = b }
+        return best
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        appLanguage = resolveLanguage(cfg.idioma)
         try? FileManager.default.createDirectory(atPath: sessionsDir, withIntermediateDirectories: true)
         updateScriptsIfNeeded()
         History.rotateIfNeeded()
@@ -894,8 +910,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard cfg.cumpleCantado != key else { return }
         store.c.cumpleCantado = key
         first.js("carita.found()")   // confeti
-        first.notice("🎂 ¡Feliz cumpleaños, \(who.nombre)!")
-        speak("Cumpleaños feliz, cumpleaños feliz, te deseamos, \(who.nombre), cumpleaños feliz. ¡Felicidades!",
+        first.notice(T("🎂 ¡Feliz cumpleaños, \(who.nombre)!", "🎂 Happy birthday, \(who.nombre)!"))
+        speak(T("Cumpleaños feliz, cumpleaños feliz, te deseamos, \(who.nombre), cumpleaños feliz. ¡Felicidades!",
+                "Happy birthday to you, happy birthday to you, happy birthday, dear \(who.nombre), happy birthday to you!"),
               interrupt: true, by: first)
     }
 
@@ -1067,7 +1084,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if speech.isSpeaking { speech.stopSpeaking(at: .immediate) }
         listening = c
         c.js("carita.listen(true)")
-        c.showBubble("Te escucho…", force: true)
+        c.showBubble(T("Te escucho…", "I'm listening…"), force: true)
         listener.start()
     }
 
@@ -1086,7 +1103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         listening = nil
         c.js("carita.listen(false)")
         guard !text.isEmpty else {
-            c.notice("No te he oído nada")
+            c.notice(T("No te he oído nada", "I didn't hear anything"))
             return
         }
         debugLog("\(c.name): oído «\(text)»")
@@ -1189,58 +1206,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.autoenablesItems = false
 
         if let rel = updater.available {
-            let up = NSMenuItem(title: "Actualizar a la \(rel.version)…", action: #selector(installUpdate), keyEquivalent: "")
+            let up = NSMenuItem(title: T("Actualizar a la \(rel.version)…", "Update to \(rel.version)…"), action: #selector(installUpdate), keyEquivalent: "")
             up.target = self
             menu.addItem(up)
             menu.addItem(.separator())
         }
         if let why = dndReason {
-            let info = NSMenuItem(title: "No molestar: \(why)", action: nil, keyEquivalent: "")
+            let info = NSMenuItem(title: T("No molestar: \(why)", "Do not disturb: \(why)"), action: nil, keyEquivalent: "")
             info.isEnabled = false
             menu.addItem(info)
         }
-        let show = NSMenuItem(title: hiddenByUser ? "Mostrar Carita" : "Ocultar Carita", action: #selector(toggleHidden), keyEquivalent: "")
+        let show = NSMenuItem(title: hiddenByUser ? T("Mostrar Carita", "Show Carita") : T("Ocultar Carita", "Hide Carita"), action: #selector(toggleHidden), keyEquivalent: "")
         show.target = self
         setKey(show, toggleShortcut)
         menu.addItem(show)
         if let until = mutedUntil {
             let f = DateFormatter()
             f.dateFormat = "HH:mm"
-            addToggle(menu, "Silenciada hasta las \(f.string(from: until))", true, #selector(toggleMute))
+            addToggle(menu, T("Silenciada hasta las \(f.string(from: until))", "Muted until \(f.string(from: until))"), true, #selector(toggleMute))
         } else {
-            addToggle(menu, "Silenciar 1 hora", false, #selector(toggleMute))
+            addToggle(menu, T("Silenciar 1 hora", "Mute for 1 hour"), false, #selector(toggleMute))
         }
         setKey(menu.items.last!, muteShortcut)
         if let talk = talkShortcut {
-            let hint = NSMenuItem(title: "Para hablarle, mantén \(talk.display)", action: nil, keyEquivalent: "")
+            let hint = NSMenuItem(title: T("Para hablarle, mantén \(talk.display)", "To talk to it, hold \(talk.display)"), action: nil, keyEquivalent: "")
             hint.isEnabled = false
             menu.addItem(hint)
         }
         menu.addItem(.separator())
 
-        let game = NSMenuItem(title: "Jugar al escondite", action: #selector(playHideAndSeek(_:)), keyEquivalent: "")
+        let game = NSMenuItem(title: T("Jugar al escondite", "Play hide and seek"), action: #selector(playHideAndSeek(_:)), keyEquivalent: "")
         game.target = self
         game.representedObject = creature
         menu.addItem(game)
         menu.addItem(.separator())
 
         // lo que no es del día a día (los interruptores de antes están en Ajustes)
-        let more = NSMenuItem(title: "Más", action: nil, keyEquivalent: "")
+        let more = NSMenuItem(title: T("Más", "More"), action: nil, keyEquivalent: "")
         let moreMenu = NSMenu()
         moreMenu.autoenablesItems = false
-        addSubmenu(moreMenu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
-        for (title, action) in [("Estadísticas…", #selector(openStats)), ("Diagnóstico…", #selector(openDiagnostics)),
-                                ("Buscar actualizaciones…", #selector(checkUpdates))] {
+        addSubmenu(moreMenu, T("Probar expresión", "Try an expression"), testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        for (title, action) in [(T("Estadísticas…", "Statistics…"), #selector(openStats)), (T("Diagnóstico…", "Diagnostics…"), #selector(openDiagnostics)),
+                                (T("Buscar actualizaciones…", "Check for updates…"), #selector(checkUpdates))] {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
             item.target = self
             moreMenu.addItem(item)
         }
         more.submenu = moreMenu
         menu.addItem(more)
-        let settings = NSMenuItem(title: "Ajustes…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: T("Ajustes…", "Settings…"), action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
-        let quit = NSMenuItem(title: "Salir de Carita", action: #selector(quit), keyEquivalent: "")
+        let quit = NSMenuItem(title: T("Salir de Carita", "Quit Carita"), action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
         return menu
@@ -1275,7 +1292,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !clash.isEmpty {
             debugLog("atajo ocupado: " + clash.joined(separator: " "))
             if announce {
-                let msg = "El atajo \(clash.joined(separator: " y ")) ya lo usa el Mac. Cámbialo en Ajustes."
+                let msg = T("El atajo \(clash.joined(separator: " y ")) ya lo usa el Mac. Cámbialo en Ajustes.",
+                            "The shortcut \(clash.joined(separator: " and ")) is already used by macOS. Change it in Settings.")
                 notice(msg)
             }
         }
@@ -1304,10 +1322,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func toggleMute() {
         if muted {
             store.c.silenciadaHasta = nil
-            notice("¡Ya puedo hablar otra vez!")
+            notice(T("¡Ya puedo hablar otra vez!", "I can talk again!"))
         } else {
             speech.stopSpeaking(at: .immediate)
-            notice("Vale, me callo una horita")
+            notice(T("Vale, me callo una horita", "OK, I'll keep quiet for an hour"))
             store.c.silenciadaHasta = Date().addingTimeInterval(3600).timeIntervalSince1970
         }
     }
@@ -1365,7 +1383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         diagnosticsWindow.show(info: DiagnosticsInfo(
             appVersion: appVersion,
             voiceName: { [weak self] in
-                guard let v = self?.voice else { return "Ninguna en español de España" }
+                guard let v = self?.voice else { return T("Ninguna en español de España", "No English voice installed") }
                 return "\(VoiceTab.displayName(v)) (\(VoiceTab.qualityName(v)))"
             },
             lastArrival: { [weak self] in self?.lastArrival }))
@@ -1373,11 +1391,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func openSettings() {
         settingsWindow.show(store: store, actions: SettingsActions(
-            testVoice: { [weak self] in self?.speak("¡Hola, \(self?.cfg.nombre ?? "")! Así sueno ahora. ¿Te gusta?", interrupt: true, force: true) },
+            testVoice: { [weak self] in self?.speak(T("¡Hola, \(self?.cfg.nombre ?? "")! Así sueno ahora. ¿Te gusta?", "Hi, \(self?.cfg.nombre ?? "")! This is how I sound now. Do you like it?"), interrupt: true, force: true) },
             dndStatus: { [weak self] in
                 guard let self = self else { return "" }
-                return [self.interruptions.camera ? "cámara encendida" : "cámara apagada",
-                        self.interruptions.sharing ?? "sin compartir pantalla"].joined(separator: ", ")
+                return [self.interruptions.camera ? T("cámara encendida", "camera on") : T("cámara apagada", "camera off"),
+                        self.interruptions.sharing ?? T("sin compartir pantalla", "not sharing the screen")].joined(separator: ", ")
             },
             pauseHotKeys: { [weak self] paused in
                 guard let self = self else { return }
@@ -1396,12 +1414,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let data = data, !data.isEmpty else { return [:] }
         do {
             guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                notice("frases.json tiene que ser un objeto: {\"done\": [\"…\"]}. Sigo con las de serie.")
+                notice(T("frases.json tiene que ser un objeto: {\"done\": [\"…\"]}. Sigo con las de serie.", "frases.json must be an object: {\"done\": [\"…\"]}. Using the built-in lines."))
                 return [:]
             }
             return obj
         } catch {
-            notice("Hay un error en frases.json\(jsonErrorLine(error, data).map { ", línea \($0)" } ?? ""). Sigo con las de serie.")
+            notice(T("Hay un error en frases.json\(jsonErrorLine(error, data).map { ", línea \($0)" } ?? ""). Sigo con las de serie.",
+                     "There's an error in frases.json\(jsonErrorLine(error, data).map { ", line \($0)" } ?? ""). Using the built-in lines."))
             return [:]
         }
     }
@@ -1429,7 +1448,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         primary.web.evaluateJavaScript("JSON.stringify(carita.frasesDeSerie())") { result, _ in
-            var obj: [String: Any] = ["_ayuda": "Cada clave sustituye a las frases de serie de ese estado; \"+done\" añade en vez de sustituir. {n} es tu nombre y {t} el tiempo trabajado. Borra las que no quieras cambiar."]
+            var obj: [String: Any] = ["_ayuda": T("Cada clave sustituye a las frases de serie de ese estado; \"+done\" añade en vez de sustituir. {n} es tu nombre y {t} el tiempo trabajado. Borra las que no quieras cambiar.", "Each key replaces the built-in lines for that state; \"+done\" adds instead of replacing. {n} is your name and {t} the time worked. Delete the ones you don't want to change.")]
             if let json = result as? String, let data = json.data(using: .utf8),
                let serie = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 obj.merge(serie) { a, _ in a }
@@ -1446,6 +1465,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func sendFaceConfig(to one: Creature? = nil) {
         let face: [String: Any] = [
             "nombre": cfg.nombre,
+            "idioma": appLanguage,
             "breakAfter": cfg.descansoMinutos * 60_000,
             "maskAfter": cfg.antifazMinutos * 60_000,
             "breakGap": cfg.pausaMinutos * 60_000,
@@ -1474,17 +1494,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if c.atajoMostrar != old.atajoMostrar || c.atajoCallar != old.atajoCallar || c.atajoHablar != old.atajoHablar { registerHotKeys() }
         if c.irABuscarte != old.irABuscarte && !c.irABuscarte { goHomeAll() }
-        if c.avisosVoz != old.avisosVoz && c.avisosVoz { speak("¡Vale! Te aviso con voz", interrupt: true) }
+        if c.avisosVoz != old.avisosVoz && c.avisosVoz { speak(T("¡Vale! Te aviso con voz", "OK! I'll tell you out loud"), interrupt: true) }
         if c.leerRespuestas != old.leerRespuestas {
             if c.leerRespuestas {
-                primary.js("carita.reply('Te leo un resumen de cada respuesta')")
-                speak("Vale. A partir de ahora te leo un resumen de cada respuesta.", interrupt: true)
+                primary.js("carita.reply(\(jsString(T("Te leo un resumen de cada respuesta", "I'll read you a summary of every answer"))))")
+                speak(T("Vale. A partir de ahora te leo un resumen de cada respuesta.", "OK. From now on I'll read you a summary of every answer."), interrupt: true)
             } else {
                 speech.stopSpeaking(at: .immediate)
-                primary.js("carita.say('Vale, me callo')")
+                primary.js("carita.say(\(jsString(T("Vale, me callo", "OK, I'll be quiet"))))")
             }
         }
         if c.cumples != old.cumples { sendFaceConfig(); singBirthdayIfNeeded() }
+        if c.idioma != old.idioma {
+            appLanguage = resolveLanguage(c.idioma)
+            sendFaceConfig()
+        }
         if c.nombre != old.nombre || c.descansoMinutos != old.descansoMinutos
             || c.antifazMinutos != old.antifazMinutos || c.pausaMinutos != old.pausaMinutos { sendFaceConfig() }
         refreshMenu()

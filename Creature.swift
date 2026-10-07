@@ -102,6 +102,9 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let container = NSView(frame: NSRect(origin: .zero, size: size))
         let config = WKWebViewConfiguration()
         config.userContentController.add(self, name: "carita")
+        // el idioma, antes de que la cara salude al cargar
+        config.userContentController.addUserScript(WKUserScript(source: "window.caritaLang = '\(appLanguage)';",
+                                                                injectionTime: .atDocumentStart, forMainFrameOnly: true))
         web = WKWebView(frame: .zero, configuration: config)
         web.setValue(false, forKey: "drawsBackground")
         web.underPageBackgroundColor = .clear
@@ -247,9 +250,9 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         if hiding { return gameFound() }
         if app.speech.isSpeaking && app.speaker === self {
             app.speech.stopSpeaking(at: .word)
-            js("carita.say('Vale, vale, me callo')")
+            js("carita.say(\(app.jsString(T("Vale, vale, me callo", "OK, OK, I'll be quiet"))))")
         } else if currentState == "asking", app.focusTerminal(for: self) {
-            js("carita.say('¡Vamos para allá!')")
+            js("carita.say(\(app.jsString(T("¡Vamos para allá!", "On my way!"))))")
         } else {
             js("carita.poke()")
         }
@@ -565,9 +568,10 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     private func gameFound() {
         guard let start = hideStart else { return }   // aún contando: no vale
         let secs = Int(Date().timeIntervalSince(start).rounded())
-        let time = secs < 60 ? "\(secs) segundo\(secs == 1 ? "" : "s")"
-            : "\(secs / 60) minuto\(secs >= 120 ? "s" : "")\(secs % 60 > 0 ? " y \(secs % 60) segundos" : "")"
-        let line = "¡Me has pillado! Has tardado \(time)"
+        let time = secs < 60 ? T("\(secs) segundo\(secs == 1 ? "" : "s")", "\(secs) second\(secs == 1 ? "" : "s")")
+            : T("\(secs / 60) minuto\(secs >= 120 ? "s" : "")\(secs % 60 > 0 ? " y \(secs % 60) segundos" : "")",
+                "\(secs / 60) minute\(secs >= 120 ? "s" : "")\(secs % 60 > 0 ? " and \(secs % 60) seconds" : "")")
+        let line = T("¡Me has pillado! Has tardado \(time)", "You found me! It took you \(time)")
         js("carita.found()")
         app?.speak(line, interrupt: true, by: self)
         endGame(message: "carita.say(\(app?.jsString(line) ?? "''"))")

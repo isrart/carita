@@ -1,247 +1,145 @@
 # Carita
 
-<p align="center"><img src="docs/img/caritas.png" alt="Las cinco Caritas: redondita con boina y copa de vino, mandarina con flor, alubia alta, gotita y pelusita" width="760"></p>
+<p align="center"><img src="docs/img/en/caritas.png" alt="The five Caritas: round, tangerine with a flower, tall bean, little drop and fluffball" width="760"></p>
 
-Un bichito que flota encima de todo en tu Mac y pone cara a lo que hace Claude Code en la terminal. Te lee las respuestas, puedes hablarle, se disfraza según el proyecto y, cuando hay varios sin nada que hacer, se sientan juntos en un sofá.
+<p align="center"><b>A little orange critter that floats on your Mac and puts a face on what Claude Code is doing.</b><br>
+It reads answers out loud, you can talk to it, it lets you know when it needs you and, when several of them have nothing to do, they sit together on a sofa.</p>
 
-**[⬇️ Descargar la última versión](https://github.com/isrart/carita/releases/latest)** · macOS 13 o superior · todo se queda en tu Mac
+<p align="center"><a href="https://github.com/isrart/carita/releases/latest"><b>⬇️ Download the latest version</b></a> · macOS 13 or later · everything stays on your Mac · <a href="README.es.md">Español</a></p>
 
-> Para desarrollo: `CLAUDE.md` explica cómo está montada y `ROADMAP.md` lista las mejoras que ya se hicieron.
+<p align="center"><img src="docs/img/en/estados.png" alt="Carita thinking, reading, writing, running, deploying, celebrating, asking for help, listening and sleeping" width="560"></p>
 
-<p align="center"><img src="docs/img/estados.png" alt="Carita pensando, leyendo, escribiendo, ejecutando, desplegando con cava, celebrando, pidiendo ayuda, escuchando y durmiendo" width="560"></p>
+## What it does
 
-| Claude Code está…            | Carita…                                   |
-|------------------------------|-------------------------------------------|
-| arrancando sesión            | te saluda con la manita                   |
-| pensando (le mandas algo)    | mira al techo y le da vueltas a la hoja   |
-| leyendo archivos             | se pone las gafas y escanea               |
-| editando / escribiendo       | saca la lengua y garabatea con el lápiz   |
-| ejecutando comandos (Bash)   | casco de obra, dientes apretados, sudando |
-| buscando en internet         | lupa en mano                              |
-| lanzando subagentes          | aparecen dos mini-colegas                 |
-| esperando que decidas algo   | salta, agita los brazos y te llama        |
-| terminado                    | confeti y sonrisa                         |
-| 3 min sin nada               | bosteza                                   |
-| 12 min sin nada              | se duerme (con pompa de moco incluida)    |
+| Claude Code is…              | Carita…                                    |
+|------------------------------|--------------------------------------------|
+| starting a session           | waves hello                                |
+| thinking                     | looks up and twirls its leaf               |
+| reading files                | puts its glasses on                        |
+| writing code                 | sticks its tongue out and scribbles        |
+| running commands             | hard hat, gritted teeth, sweating          |
+| browsing the web             | magnifying glass in hand                   |
+| launching subagents          | two mini-buddies show up                   |
+| deploying (`git push`, `deploy`, `vercel --prod`…) | a rocket on the launch pad; if it works, liftoff and fireworks |
+| waiting for your decision    | jumps, waves its arms and, if you're in another app, runs across the screen to find you |
+| done                         | confetti, and it reads you a summary of the answer |
 
-Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquillas. Si pasa minuto y medio sin novedades, se queda quieta (sin dejar de mirarte ni de parpadear) para no gastar batería.
+Its eyes follow the mouse, it blinks and, when nothing happens, it gets bored, falls asleep (snot bubble included) and stays still to save battery.
 
-## Sorpresas (para jugar con el ratón)
+## One critter per session
 
-<p align="center"><img src="docs/img/sorpresas.png" alt="Ataque de cosquillas, mareo, susto al borde de la pantalla, hambre y escondite" width="760"></p>
+Every open Claude Code session gets its own critter, with its name underneath (whatever you set with `/rename`, or the folder name). Each one reacts to its own session; when a session ends, its critter says goodbye and leaves.
 
-- **Ataque de cosquillas**: 8 clics rápidos y se cae de espaldas pataleando de risa.
-- **Mareo**: zarandéalo arrastrándolo de lado a lado y se le ponen los ojos en espiral.
-- **«¡Que me caigo!»**: llévalo al borde de la pantalla y se agarra asustado.
-- **Hambre**: deja el puntero quieto encima un rato… y ¡ñam! (es broma).
-- **Escondite**: clic derecho → «Jugar al escondite». Cuenta, desaparece y se asoma por un borde de la pantalla; si lo pillas con un clic te dice cuánto has tardado. Si tardas mucho, da pistas, y a los dos minutos sale él: «¡Gané yo!».
+<p align="center"><img src="docs/img/sofa.png" alt="Three critters sitting on a green sofa" width="520"></p>
 
-## Días y horas especiales
+When two or more have nothing to do, instead of hanging around the screen they walk to a **sofa** and sit together. The one with work to do gets up, and comes back when it's done.
 
-<p align="center"><img src="docs/img/dias.png" alt="Gorro de cumpleaños, de Papá Noel con nieve, corona de Reyes, fantasma de Halloween, gorro de dormir y taza de café" width="760"></p>
+## Five Caritas
 
-- **Cumpleaños**: en Ajustes → Cumpleaños apuntas nombres y fechas. Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).
-- **Navidad** (22–26 de diciembre): gorro de Papá Noel y nieve. **Nochevieja**: gorro de fiesta. **Reyes** (5 y 6 de enero): corona. **Halloween**: de fantasma. **Carnaval**: un disfraz distinto cada hora.
-- **De 22:00 a 7:00**: pijama con gorro de dormir; se duerme antes y te pregunta si sigues despierto.
-- **De 7:00 a 8:30**: taza de café humeante.
+Always orange, like Claude, but in five shapes, each with its own face: **round**, **tall bean** (more serious), **little drop** (dot eyes and a cat mouth), **tangerine with a flower** and **fluffball** (like Claude Code's mascot). Which one shows up depends on the project:
 
-## Un bicho por sesión
-
-Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo: el que le pongas con `/rename` en Claude Code o, si no, el de la carpeta. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
-
-### El sofá
-
-<p align="center"><img src="docs/img/sofa.png" alt="Tres bichos sentados juntos en un sofá verde: uno despierto, otro dormido y otro bostezando" width="520"></p>
-
-Para que varios bichos parados no parezcan «un frutero lleno de naranjas»: cuando hay dos o más y llevan un minuto sin novedades, se van andando a un sofá y se sientan juntos (si se duermen, se apoyan en el de al lado). Cuando la sesión de uno hace algo, ese se levanta y se pone delante a trabajar; al acabar, vuelve a su plaza. Si sacas a uno del sofá arrastrándolo, se queda donde lo sueltes hasta que su sesión vuelva a hacer algo.
-
-## Cinco Caritas
-
-Siempre naranja, como Claude, pero con cinco formas, cada una con su cara: **redondita** (la de siempre), **alubia alta** (más seria, con párpados), **gotita** (ojitos de punto y boca de gato), **mandarina con flor** (pestañas y risa) y **pelusita** (ojos de pastilla, como la mascota de Claude Code). Sale una u otra según el proyecto, con reglas por palabras de la carpeta, como los disfraces:
-
-| Si la carpeta contiene… | Forma |
+| If the folder contains… | Shape |
 |---|---|
-| claude, agent, mcp, skill, prompt | pelusita |
-| blog, reel, insta, video, redes, social, articulo | mandarina con flor |
-| app, api, swift, ios, web, carita, code, dev… | alubia alta |
-| notas, apuntes, scratch, prueba, test, tmp, sandbox | gotita |
-| lo demás (Bajovelo incluido) | redondita |
+| claude, agent, mcp, skill, prompt | fluffball |
+| blog, reel, insta, video, social | tangerine with a flower |
+| app, api, swift, ios, web, code, dev… | tall bean |
+| notes, scratch, test, tmp, sandbox | little drop |
+| anything else | round |
 
-Se cambia en Ajustes → Disfraces (también puedes fijar una forma para todos), o poniendo la forma en el archivo `.carita` del proyecto (p. ej., `blog alubia`).
+Change the rules in Settings → Look, or write the shape in a `.carita` file at the project root (e.g. `alubia` for the bean).
 
-## Pack Bajovelo: disfraces según el proyecto
+## Talk to it
 
-Opcional: se activa en Ajustes → Aspecto → «Pack Bajovelo».
+**Hold `⌃⌥⌘Space`** while you speak, like a walkie-talkie. The critter of the most recently active session cups its ear and types what it hears. When you let go, it types it into that session's terminal for you to check and send (or sends it right away, if you prefer: Settings → Voice).
 
-En cualquier cosa de Bajovelo lleva la boina granate, y en la mano algo según el subproyecto. Lo deduce del nombre de la carpeta:
+Speech recognition runs on your Mac, offline. The first time it asks for microphone and speech recognition permission; to type into the terminal it also needs **Accessibility** (System Settings → Privacy & Security → Accessibility → Carita). In Terminal it picks the session's exact tab; in other terminals it brings the app to the front.
 
-| Si la carpeta contiene… | Disfraz |
-|---|---|
-| trivia, quiz, preguntas, denominacion | boina + cartel con «?» |
-| reel, insta, video, redes, social | boina + móvil grabando |
-| recurso, guia, ficha, descarga | boina + guía de vino |
-| blog, articulo | boina con pluma + cuaderno |
-| bajovelo, vino, wine (lo demás de Bajovelo) | boina + copa de vino |
-| nada de lo anterior | sin disfraz |
+## It reads answers out loud
 
-Las palabras se pueden cambiar (y añadir reglas nuevas) en Ajustes → Disfraces. Si alguna carpeta no la pilla bien, crea un archivo `.carita` en su raíz con una palabra: `blog`, `recursos`, `trivia`, `reels`, `bajovelo` o `none`. También puedes fijarlo a mano: clic derecho → Disfraz.
+When Claude finishes, Carita tells you the gist out loud (no code, tables or long paths) and puts the main sentence in its speech bubble. Click it to make it stop. Turn it off in Settings → Voice, where you also pick the voice, speed and pitch. If the voice sounds robotic, download an "Enhanced" or "Premium" one in System Settings → Accessibility → Spoken Content.
 
-## Fiesta de deploy
+## Surprises
 
-Cuando lanzo un `git push`, un `deploy` (npm, Netlify, Firebase, Fly, Supabase…), `vercel --prod` o `supabase db push`, aparece un cohete en la plataforma de lanzamiento. Si sale bien, despega y hay fuegos artificiales. Si falla, no hay fiesta.
+<p align="center"><img src="docs/img/en/sorpresas.png" alt="Tickle attack, dizzy, scared at the screen edge, hungry and hide and seek" width="760"></p>
 
-En los proyectos de Bajovelo, en lugar del cohete agita una botella de cava y, si el deploy sale bien, salta el tapón (con su «pop») y brinda contigo.
+- **Tickles**: 8 quick clicks and it falls on its back laughing.
+- **Dizzy**: shake it by dragging it from side to side.
+- **"I'm falling!"**: drag it to the edge of the screen.
+- **Hungry**: leave the pointer still on top of it for a while… and chomp! (just kidding).
+- **Hide and seek**: right-click → "Play hide and seek". It peeks out from an edge of the screen; find it and it tells you how long you took.
 
-## Modo descanso
+## Special days and hours
 
-Tras 90 minutos seguidos de trabajo, se estira y te dice cuánto llevas. Si lo ignoras y sigues 10 minutos más, se pone un antifaz (y lo lleva puesto mientras trabaja). Cuando pasan 5 minutos sin actividad cuenta como descanso: se lo quita y el contador vuelve a cero.
+<p align="center"><img src="docs/img/en/dias.png" alt="Birthday party hat, Santa hat, Three Kings crown, ghost, nightcap and coffee mug" width="760"></p>
 
-## Te busca cuando te necesita
+A party hat on the birthdays you add in Settings (and it sings "Happy birthday"), a Santa hat with snow at Christmas, a crown on Three Kings' Day, a ghost on Halloween and a different costume every hour during Carnival. From 10 pm to 7 am it wears pajamas, and from 7 to 8:30 am it has its coffee.
 
-Si necesito que decidas algo y estás en otra app, Carita cruza la pantalla corriendo hasta donde tienes el ratón. Un clic sobre ella te lleva a la terminal donde está Claude Code, y cuando respondes vuelve a su sitio. Se desactiva en clic derecho → «Ir a buscarme cuando me necesita».
+## And also
 
-## No molesta en las llamadas
+- **Breaks**: after 90 minutes of non-stop work it asks you to stretch; ignore it and it puts on a sleep mask.
+- **No interruptions on calls**: when your camera is on or you share your screen (Zoom, Screen Sharing, AirPlay), it hides and goes quiet, then comes back by itself.
+- **Statistics**: hours per project, finished tasks, deploys and breaks for the week or month.
+- **Diagnostics**: if it doesn't react, it tells you what's wrong and fixes it ("Reinstall hooks").
+- **One-click updates** (More → Check for updates).
 
-Si enciendes la cámara (Zoom, Meet, FaceTime, Teams… cualquier app), Carita se esconde y se calla; cuando la apagas, vuelve sola. Mientras tanto sigue enterándose de lo que hace Claude Code, así que vuelve al día.
+## Install
 
-También se esconde si compartes pantalla con Zoom, si alguien está viendo tu Mac con Compartir pantalla o si duplicas la pantalla (AirPlay o proyector). Compartir pantalla desde Meet o Teams en el navegador sin cámara no se puede detectar. El modo concentración del Mac tampoco: macOS no se lo cuenta a una app como esta.
+### Prebuilt (easiest)
 
-Se configura en el menú → «No molestar automático», donde también ves qué detecta ahora mismo.
-
-## Háblale
-
-**Mantén pulsado `⌃⌥⌘Espacio`** mientras hablas, como un walkie-talkie. El bicho de la sesión que estuvo activa la última se lleva la mano a la oreja y va escribiendo en su bocadillo lo que entiende. Al soltar, trae al frente la terminal de esa sesión y **deja el texto escrito, sin pulsar Intro**: lo revisas y lo envías tú. Si prefieres que lo envíe directamente, activa Ajustes → Voz → «Enviar directamente al soltar».
-
-- El reconocimiento es en español de España y **en tu Mac, sin internet**.
-- La primera vez pide permiso para el **micrófono** y el **reconocimiento de voz**. Para que escriba ella en la terminal necesita además **Accesibilidad** (Ajustes del Sistema → Privacidad y seguridad → Accesibilidad → Carita). Sin ese permiso, te deja el texto copiado y te dice que lo pegues con `⌘V`.
-- En Terminal elige la pestaña exacta de la sesión (te pedirá permiso de Automatización una vez). En otras terminales (Warp, iTerm…) trae la app al frente y pega donde estés.
-- El atajo se cambia en Ajustes → Atajos.
-
-## Te lee las respuestas
-
-Cuando termino de responder, Carita te dice en voz alta la idea general (las primeras frases, sin código, tablas ni rutas largas) y pone la frase principal en el bocadillo, moviendo la boca mientras habla.
-
-- **Callarla**: clic encima mientras habla. También se calla sola si le mandas otra cosa a Claude Code.
-- **Activar o desactivar**: clic derecho → «Leer mis respuestas en voz alta».
-- **Elegir voz, velocidad y tono**: Ajustes → Voz, con botón «Probar».
-- **Mejor voz**: la que viene de serie suena algo robótica. En Ajustes del Sistema → Accesibilidad → Contenido leído → Voz del sistema → Gestionar voces, descarga una voz de *Español (España)* con la etiqueta «mejorada» o «prémium» (por ejemplo, Mónica). Carita elige sola la mejor que tengas instalada (o la que escojas en Ajustes → Voz); reiníciala después de descargarla.
-
-## Instalar
-
-### Ya compilada (lo más fácil)
-
-1. Descarga **Carita.zip** de la [última Release](https://github.com/isrart/carita/releases/latest), descomprímelo y mueve **Carita.app** a `~/Applications` (o a Aplicaciones).
-2. **La primera vez, clic derecho → Abrir → Abrir.** La app va firmada con un certificado propio, no con uno de Apple (no hay cuenta de desarrollador), así que Gatekeeper avisa de que no puede comprobarla. Gracias a ese certificado, macOS no olvida los permisos (micrófono, accesibilidad) cuando Carita se actualiza. Si ni así te deja, quítale la cuarentena:
+1. Download **Carita.zip** from the [latest release](https://github.com/isrart/carita/releases/latest), unzip it and move **Carita.app** to `~/Applications` (or Applications).
+2. **The first time, right-click → Open → Open.** The app is signed with its own certificate, not an Apple one, so macOS warns that it can't verify it. If it still won't open:
    ```bash
    xattr -dr com.apple.quarantine ~/Applications/Carita.app
    ```
-3. Menú del bichito → **Diagnóstico… → Reinstalar hooks**. Copia los scripts a `~/.carita` y conecta los hooks de Claude Code (sin tocar lo demás de tu `settings.json`).
-4. Abre una sesión **nueva** de Claude Code.
+3. Critter icon in the menu bar → **More → Diagnostics… → Reinstall hooks**. This connects Carita to Claude Code without touching the rest of your `~/.claude/settings.json`.
+4. Open a **new** Claude Code session.
 
-Necesitas `python3` (viene con las Command Line Tools: `xcode-select --install`).
+`python3` is required; it comes with the Command Line Tools (`xcode-select --install`).
 
-### Desde el código
-
-Necesitas macOS 13 o superior y las Command Line Tools (`xcode-select --install` si no las tienes).
+### From source
 
 ```bash
+git clone https://github.com/isrart/carita.git
 cd carita
 bash install.sh
 ```
 
-El script:
+It builds the app, puts it in `~/Applications`, connects the hooks (keeping a backup of your `settings.json`) and opens it.
 
-1. Compila la app con `build.sh` y la deja en `~/Applications/Carita.app`.
-2. Copia `hook.sh` a `~/.carita/`.
-3. Añade los hooks a `~/.claude/settings.json` sin tocar lo que ya tengas (guarda copia en `settings.json.antes-de-carita`).
-4. Abre Carita.
+## Usage
 
-Abre una sesión **nueva** de Claude Code para que coja los hooks.
+- **Drag** the critters anywhere; they remember their spot.
+- **Click**: tickles. If it's talking, it stops. If it needs you, it takes you to the terminal.
+- **Menu** (right-click or the menu bar icon): hide, mute for 1 hour, hide and seek, "More" (statistics, diagnostics, updates) and **Settings**.
+- **Shortcuts**: `⌃⌥⌘C` hides or shows it, `⌃⌥⌘M` mutes it for an hour and `⌃⌥⌘Space` (held) to talk. Change them in Settings → Shortcuts.
 
-## Usar
+## Customize
 
-- **Arrastrar**: muévela a donde quieras, incluso pegada arriba del todo; recuerda la posición.
-- **Bocadillo**: sale pegado a la cabeza; si no cabe por arriba, aparece debajo.
-- **Clic**: cosquillas. Si está hablando, se calla. Si te está llamando, te lleva a la terminal.
-- **Clic derecho** (o el icono del bicho en la barra de menús, que tiene el mismo menú): ocultar/mostrar, silenciar 1 hora, jugar al escondite, «Más» (probar expresiones, estadísticas, diagnóstico, buscar actualizaciones) y **Ajustes**, donde está todo lo demás.
-- **Ocultarla**: desde la barra de menús la vuelves a mostrar; se acuerda aunque reinicies. Si te necesita estando oculta, al icono le sale una exclamación.
-- **Silenciar 1 hora**: ni voz, ni bocadillos, ni viene a buscarte. En el menú pone hasta qué hora («Silenciada hasta las 15:40») y se reactiva sola.
-- **Atajos de teclado** (funcionan con cualquier app delante): `⌃⌥⌘C` la esconde o la muestra; `⌃⌥⌘M` la calla al momento y la silencia una hora (otra vez, la reactiva). Si chocan con un atajo del Mac, te avisa en el bocadillo.
-- **Abrirla**: Spotlight (`Cmd + Espacio` → «Carita») o `open ~/Applications/Carita.app`.
+- **Settings**: your name, language (English or Spanish), size, voice, breaks, shape, birthdays, do not disturb and shortcuts. Everything is saved in `~/.carita/config.json` and applies instantly.
+- **Lines**: Settings → General → "Edit lines…" creates `~/.carita/frases.json` with all the built-in lines. Each state you add replaces its lines; with `"+done"` you add instead of replacing. `{n}` is your name.
 
-## Estadísticas
-
-Menú → **Estadísticas…**, esta semana o este mes:
-
-- **Horas por proyecto** (en color, los de Bajovelo). Cuenta cada pregunta a Claude Code hasta su respuesta, más los ratos seguidos sin pausas de más de 5 minutos.
-- **Tareas terminadas** por día.
-- **Deploys**: los que llegaron a producción y los que fallaron.
-- **Descansos**: cuántas veces te pidió estirarte y cuántas lo ignoraste.
-
-Se apuntan en `~/.carita/historial.jsonl` (una línea por evento). Cuando pasa de 2 MB, lo de hace más de 60 días se resume por días en `historial-resumen.json`. Todo se queda en tu Mac.
-
-## ¿No reacciona?
-
-Menú → **Diagnóstico…** enseña con semáforos lo que puede fallar: cuándo llegó el último aviso de Claude Code, si los hooks están en `~/.claude/settings.json`, si `hook.sh` y `python3` están bien, si los scripts son de la misma versión que la app, qué terminal ha detectado y qué voz usa.
-
-- **Reinstalar hooks** vuelve a copiar los scripts y a poner los hooks (sin tocar lo demás de tu `settings.json`).
-- **Probar** hace lo mismo que Claude Code al empezar una sesión y comprueba que Carita se entera.
-- **Copiar informe** deja el resultado en el portapapeles, para pegarlo donde haga falta.
-
-Al arrancar, si los scripts de `~/.carita` son de otra versión que la app, Carita los actualiza sola.
-
-## Cómo funciona
+## How it works
 
 ```
-Claude Code ──hook──▶ ~/.carita/hook.sh <estado> ──▶ ~/.carita/state ──▶ Carita.app ──▶ face.html
+Claude Code ──hooks──▶ ~/.carita/hook.sh ──▶ ~/.carita/sesiones/<session>.state ──▶ Carita.app ──▶ one critter per session
 ```
 
-Los hooks solo escriben una palabra en un archivo. `carita.py` elige el disfraz, detecta los deploys y, al terminar, saca la última respuesta de la conversación y deja el resumen en `~/.carita/say`. La app vigila esa carpeta (sin consultarla en bucle) y cambia la cara al momento. Cuando se duerme, para todas las animaciones para no gastar batería. Nada sale de tu Mac.
+Claude Code's hooks just write a word to a file (and, when done, a summary of the answer). The app watches that folder and changes the face. **Nothing leaves your Mac**, except the GitHub check for updates, which you can turn off.
 
-## Ajustes
+## Bajovelo pack
 
-<p align="center"><img src="docs/img/ajustes.png" alt="Ventana de Ajustes de Carita con las pestañas General, Voz, Descanso, Disfraces, Cumpleaños, No molestar y Atajos" width="480"></p>
+<p align="center"><img src="docs/img/en/bajovelo.png" alt="Bajovelo pack: beret and wine glass, blog costume, cava bottle while deploying and the cork popping" width="680"></p>
 
-Menú → **Ajustes…** (`⌘,` con el menú abierto). Todo se aplica al momento, sin reiniciar:
+Carita was born for Bajovelo, a Spanish wine project, and ships an optional pack in its style: a maroon beret and, in hand, something for each subproject (a wine glass, a notebook for the blog, a guide, a trivia sign or a phone recording). Deploys are celebrated by shaking a bottle of cava and popping the cork. Turn it on in Settings → Look → "Bajovelo pack", where you can also change the words for each costume.
 
-- **General**: tu nombre (cómo te llama), tamaño, ir a buscarte y abrir al iniciar sesión.
-- **Voz**: leer respuestas, avisos con voz, qué voz, velocidad y tono.
-- **Descanso**: minutos hasta estirarse (90), hasta el antifaz (10) y pausa que cuenta como descanso (5).
-- **Disfraces**: el disfraz fijo o automático y las palabras de cada uno.
-- **No molestar** y **Atajos**.
-
-Se guardan en `~/.carita/config.json`. Puedes editarlo a mano; si lo guardas con un error, Carita te avisa y sigue con lo de antes.
-
-## Frases a tu gusto
-
-Ajustes → General → **Editar frases…** crea `~/.carita/frases.json` con todas las frases de serie y lo abre en tu editor. Al guardar, la siguiente frase ya es la nueva, sin reiniciar nada:
-
-```json
-{
-  "done": ["¡Hecho, máquina!", "Otra más al saco"],
-  "+asking": ["Isra, que te estoy esperando…"]
-}
-```
-
-- Cada estado que pongas **sustituye** a sus frases de serie; los que no pongas se quedan como estaban.
-- Con `+` delante (`"+done"`) **añades** frases a las de serie en vez de sustituirlas.
-- `{n}` es tu nombre y `{t}` el tiempo que llevas trabajando (en `stretch`).
-- Si el archivo tiene un error, Carita te dice en qué línea y sigue con las de serie.
-
-## Personalizar el personaje
-
-El dibujo está en `face.html`: frases (`FRASES`), colores en `:root` (`--clay`, `--leaf`…). Puedes abrir `face.html` en el navegador para ver la demo. Tras cambiarlo, vuelve a ejecutar `bash install.sh`.
-
-## Actualizar
-
-Menú → **Buscar actualizaciones…**. Si hay una versión nueva, Carita te lo dice en el bocadillo y en el menú aparece **«Actualizar a la X.Y.Z…»**: la descarga, sustituye la app, actualiza los scripts de `~/.carita` y se reinicia sola, sin tocar la terminal.
-
-Además lo mira sola una vez al día (se desactiva en Ajustes → General). Es lo único que sale de tu Mac: una consulta a GitHub por la última versión.
-
-Si trabajas con el código: `git pull && bash install.sh`.
-
-## Desinstalar
+## Uninstall
 
 ```bash
 bash uninstall.sh
 ```
+
+Removes the app, its hooks (the rest of your `settings.json` stays as it was) and `~/.carita`.
+
+---
+
+For development: [`CLAUDE.md`](CLAUDE.md) explains how it's built (in Spanish) and [`ROADMAP.md`](ROADMAP.md) records how it was made.

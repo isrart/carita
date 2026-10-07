@@ -701,7 +701,7 @@ html.app .bubble{display:none}
 <script>
 (() => {
   // Tu nombre, para cuando te llama (en la app lo manda Ajustes con carita.config)
-  let NOMBRE = "crack";   // la app manda el nombre de verdad
+  let NOMBRE = "";   // la app manda el nombre de verdad (si no hay, «crack» / «champ»)
 
   const host = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.carita;
   const APP = !!host;
@@ -712,7 +712,46 @@ html.app .bubble{display:none}
   const svg = document.getElementById("c");
   const bubble = document.getElementById("bubble");
 
-  const FRASES = {
+  const FRASES_EN = {
+    hello: ["Hey! I'm here", "What are we breaking today?", "Coffee in hand. Shall we?"],
+    thinking: ["Hmm… let me think", "Give me a sec", "On it, boss", "Loading neurons…", "Thinking really hard"],
+    reading: ["Let's see what we've got…", "Reading with my smart glasses", "Interesting… very interesting", "Someone wrote this in a hurry"],
+    writing: ["Typing like crazy", "This is going to look gorgeous", "Shhh, I'm creating", "Top-quality code, you'll see"],
+    running: ["Running! Hold on tight", "Don't explode, don't explode…", "Terminal at full speed", "Compiling… or praying"],
+    browsing: ["Searching the internet…", "Sherlock mode on", "Let me look it up"],
+    delegating: ["Calling my buddies", "Teamwork makes the dream work", "Outsourcing…"],
+    asking: ["{n}! I need you for a sec", "Psst… {n}, can you take a look?", "This one's your call", "Knock knock, anybody there?"],
+    done: ["Done! High five", "Done! I'm a legend", "Finished. What's next?", "Ta-da!"],
+    sleepy: ["*yawn*", "Are we doing anything or what?", "I'm nodding off…"],
+    poke: ["Hey! That tickles", "Ouch! What's up?", "I'm working here, you know?", "Hahaha stop it!"],
+    bye: ["See you later, {n}!", "Off for a nap"],
+    deploying: ["Deploying! Fingers crossed", "3… 2… 1…", "Please don't fail, please don't fail…"],
+    shipped: ["It's live, baby!", "Perfect liftoff!", "It's on the internet!"],
+    deployingVino: ["Shaking the cava…", "Getting the cork ready…", "Don't let the cava get warm…"],
+    shippedVino: ["Pop! Uncorked!", "Cheers! It's live", "Chin-chin!"],
+    stretch: ["{t} non-stop. Time to stretch?", "{t} grinding… a break, {n}?"],
+    mask: ["Well, I'm putting my sleep mask on. Your call.", "I'm taking a break even if you won't"],
+    rested: ["A break feels so good!", "Much better, right?"],
+    giggle: ["Hahaha! I give up, I give up!", "Stop, stop, I'm gonna pee! Hahaha!", "OK, OK, you win! Hahaha"],
+    dizzy: ["Whoa, I'm dizzy…", "Who moved the world?", "Everything's spinning… oops!"],
+    edge: ["I'm falling!", "Ah, ah, ah! Hold me!", "Whoa! That's a cliff!"],
+    chomp: ["CHOMP!", "Nom nom!"],
+    chompJoke: ["Hehe, just kidding!", "Relax, I don't bite… much", "Yuck, it tastes like plastic"],
+    hungryNo: ["Oops! I almost ate it", "Hey, come back here, little mouse!"],
+    hideCount: ["Count to ten! I'm hiding…", "Hide and seek! Close your eyes and count…", "No peeking! One, two, three…"],
+    hideHint: ["Hee hee…", "Cold, cold…", "I'm not over here!", "Psst… warmer, warmer…"],
+    hideWin: ["Here I was! I win!", "You give up? I was here the whole time"],
+    noche: ["Still awake?", "It's super late, {n}…", "More tomorrow, okay?", "I've already got my pajamas on"],
+    cafe: ["Coffee first, code later", "Morning, {n}. Coffee?", "No coffee, no compile"],
+    navidad: ["Merry Christmas, {n}!", "Have you been good this year?", "Ho, ho, ho… commit, commit, commit!"],
+    nochevieja: ["Got your twelve grapes ready?", "Last day of the year! Bring on the next one"],
+    reyes: ["What did the Three Kings bring you?", "I asked them for more RAM"],
+    halloween: ["Boooo!", "Trick or treat?", "I'm a very scary ghost"],
+    carnaval: ["Do you like my costume?", "It's Carnival! Guess who I am?"],
+    cumple: ["It's {c}'s birthday today!", "Happy birthday, {c}!", "Is there cake for me? It's {c}'s birthday"],
+    idle: ["Here, waiting for orders", "Another coffee?", "Relax, I've got this", "The terminal misses you"]
+  };
+  const FRASES_ES = {
     hello: ["¡Buenas! Ya estoy aquí", "¿Qué rompemos hoy?", "Café en mano. ¿Empezamos?"],
     thinking: ["Hmm… déjame pensar", "Dame un segundito", "Estoy en ello, tío", "Cargando neuronas…", "Pensando fuerte"],
     reading: ["A ver qué tenemos aquí…", "Leyendo con mis gafas de listo", "Interesante… muy interesante", "Esto lo escribió alguien con prisa"],
@@ -752,11 +791,19 @@ html.app .bubble{display:none}
     idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
   };
 
-  // las de serie, para volver a ellas si frases.json desaparece o tiene errores
-  const FRASES_SERIE = JSON.parse(JSON.stringify(FRASES));
+  // idioma: el que mande la app (carita.config) o, en el navegador, el del sistema
+  let LANG = window.caritaLang || ((navigator.language || "es").toLowerCase().startsWith("es") ? "es" : "en");
+  const FRASES = {};
+  // las de serie (del idioma actual), para volver a ellas si frases.json desaparece o tiene errores
+  let FRASES_SERIE = {}, customFrases = null;
+  function loadBase() {
+    FRASES_SERIE = JSON.parse(JSON.stringify(LANG === "en" ? FRASES_EN : FRASES_ES));
+    setFrases(customFrases);
+  }
   // frases.json: cada clave sustituye a la de serie; "+clave" añade en vez de sustituir;
   // las que empiezan por "_" son notas y se ignoran
   function setFrases(custom) {
+    customFrases = custom;
     Object.keys(FRASES).forEach(k => delete FRASES[k]);
     Object.assign(FRASES, JSON.parse(JSON.stringify(FRASES_SERIE)));
     if (!custom || typeof custom !== "object") return;
@@ -768,6 +815,7 @@ html.app .bubble{display:none}
       else FRASES[k] = list;
     }
   }
+  loadBase();
 
   const S = {
     idle:      {eyes:"open",    mouth:"smile",  brows:"none"},
@@ -815,7 +863,7 @@ html.app .bubble{display:none}
 
   const pick = (k, t) => {
     const a = FRASES[k] || [];
-    return (a[Math.floor(Math.random() * a.length)] || "").replaceAll("{n}", NOMBRE).replaceAll("{t}", t || "")
+    return (a[Math.floor(Math.random() * a.length)] || "").replaceAll("{n}", NOMBRE || (LANG === "en" ? "champ" : "crack")).replaceAll("{t}", t || "")
       .replaceAll("{c}", special.cumple || "");
   };
   function duration(ms) {
@@ -1091,7 +1139,8 @@ html.app .bubble{display:none}
   // ajustes de la app: {nombre, breakAfter, maskAfter, breakGap (ms), frases}
   function config(c) {
     if (!c) return;
-    if (typeof c.nombre === "string" && c.nombre.trim()) NOMBRE = c.nombre.trim();
+    if ((c.idioma === "es" || c.idioma === "en") && c.idioma !== LANG) { LANG = c.idioma; loadBase(); }
+    if (typeof c.nombre === "string") NOMBRE = c.nombre.trim();
     if (c.breakAfter > 0) BREAK_AFTER = c.breakAfter;
     if (c.maskAfter > 0) MASK_AFTER = c.maskAfter;
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;

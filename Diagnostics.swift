@@ -66,7 +66,7 @@ enum Scripts {
         try? inPipe.fileHandleForWriting.close()
         let deadline = Date().addingTimeInterval(timeout)
         while p.isRunning && Date() < deadline { usleep(20_000) }
-        if p.isRunning { p.terminate(); return (-2, "tardó demasiado") }
+        if p.isRunning { p.terminate(); return (-2, T("tardó demasiado", "took too long")) }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         return (p.terminationStatus, String(data: data, encoding: .utf8) ?? "")
     }
@@ -74,10 +74,10 @@ enum Scripts {
     /// Reinstala: copia los scripts y vuelve a poner los hooks en ~/.claude/settings.json.
     static func reinstallHooks() -> (Bool, String) {
         try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
-        guard copyToHome() else { return (false, "No pude copiar los scripts a ~/.carita") }
-        guard let hooksPy = bundled("hooks.py") else { return (false, "Falta hooks.py dentro de la app") }
+        guard copyToHome() else { return (false, T("No pude copiar los scripts a ~/.carita", "I couldn't copy the scripts to ~/.carita")) }
+        guard let hooksPy = bundled("hooks.py") else { return (false, T("Falta hooks.py dentro de la app", "hooks.py is missing from the app")) }
         let (code, out) = run(python, [hooksPy, "install"])
-        return code == 0 ? (true, "Hooks reinstalados. Abre una sesión nueva de Claude Code.") : (false, "hooks.py falló: \(out)")
+        return code == 0 ? (true, T("Hooks reinstalados. Abre una sesión nueva de Claude Code.", "Hooks reinstalled. Open a new Claude Code session.")) : (false, T("hooks.py falló: \(out)", "hooks.py failed: \(out)"))
     }
 }
 
@@ -131,10 +131,10 @@ final class DiagnosticsModel: NSObject, ObservableObject {
 
     static func ago(_ d: Date) -> String {
         let s = Int(Date().timeIntervalSince(d))
-        if s < 60 { return "hace \(s) s" }
-        if s < 3600 { return "hace \(s / 60) min" }
-        if s < 86400 { return "hace \(s / 3600) h" }
-        return "hace \(s / 86400) días"
+        if s < 60 { return T("hace \(s) s", "\(s) s ago") }
+        if s < 3600 { return T("hace \(s / 60) min", "\(s / 60) min ago") }
+        if s < 86400 { return T("hace \(s / 3600) h", "\(s / 3600) h ago") }
+        return T("hace \(s / 86400) días", "\(s / 86400) days ago")
     }
 
     @objc func refresh() {
@@ -151,12 +151,12 @@ final class DiagnosticsModel: NSObject, ObservableObject {
         if let (path, m) = newest {
             let state = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "?").trimmingCharacters(in: .whitespacesAndNewlines)
             let age = Date().timeIntervalSince(m)
-            list.append(Check(id: "state", title: "Último aviso de Claude Code",
+            list.append(Check(id: "state", title: T("Último aviso de Claude Code", "Last event from Claude Code"),
                               detail: "«\(state)» \(DiagnosticsModel.ago(m))",
                               level: age < 3600 ? .ok : .warn))
         } else {
-            list.append(Check(id: "state", title: "Último aviso de Claude Code",
-                              detail: "Nunca ha llegado ninguno. ¿Están los hooks instalados?", level: .bad))
+            list.append(Check(id: "state", title: T("Último aviso de Claude Code", "Last event from Claude Code"),
+                              detail: T("Nunca ha llegado ninguno. ¿Están los hooks instalados?", "None has ever arrived. Are the hooks installed?"), level: .bad))
         }
 
         // 2. hooks en settings.json
@@ -164,42 +164,42 @@ final class DiagnosticsModel: NSObject, ObservableObject {
             let missing = (hooksStatus["faltan"] as? [String]) ?? []
             let readable = (hooksStatus["settings_legible"] as? Bool) ?? true
             let level: Check.Level = !readable ? .bad : missing.isEmpty ? .ok : (present == 0 ? .bad : .warn)
-            let detail = !readable ? "~/.claude/settings.json no es JSON válido"
-                : missing.isEmpty ? "\(present) de \(expected) en ~/.claude/settings.json"
-                : "\(present) de \(expected); faltan: " + missing.prefix(4).joined(separator: ", ") + (missing.count > 4 ? "…" : "")
-            list.append(Check(id: "hooks", title: "Hooks instalados", detail: detail, level: level))
+            let detail = !readable ? T("~/.claude/settings.json no es JSON válido", "~/.claude/settings.json isn't valid JSON")
+                : missing.isEmpty ? T("\(present) de \(expected) en ~/.claude/settings.json", "\(present) of \(expected) in ~/.claude/settings.json")
+                : T("\(present) de \(expected); faltan: ", "\(present) of \(expected); missing: ") + missing.prefix(4).joined(separator: ", ") + (missing.count > 4 ? "…" : "")
+            list.append(Check(id: "hooks", title: T("Hooks instalados", "Hooks installed"), detail: detail, level: level))
         } else {
-            list.append(Check(id: "hooks", title: "Hooks instalados", detail: "No pude comprobarlo (hace falta python3)", level: .bad))
+            list.append(Check(id: "hooks", title: T("Hooks instalados", "Hooks installed"), detail: T("No pude comprobarlo (hace falta python3)", "Couldn't check (python3 is needed)"), level: .bad))
         }
 
         // 3. hook.sh
         if !fm.fileExists(atPath: hookPath) {
-            list.append(Check(id: "hook", title: "hook.sh", detail: "No está en ~/.carita", level: .bad))
+            list.append(Check(id: "hook", title: "hook.sh", detail: T("No está en ~/.carita", "Not in ~/.carita"), level: .bad))
         } else if !fm.isExecutableFile(atPath: hookPath) {
-            list.append(Check(id: "hook", title: "hook.sh", detail: "Existe pero no es ejecutable", level: .bad))
+            list.append(Check(id: "hook", title: "hook.sh", detail: T("Existe pero no es ejecutable", "It exists but isn't executable"), level: .bad))
         } else {
-            list.append(Check(id: "hook", title: "hook.sh", detail: "En ~/.carita y ejecutable", level: .ok))
+            list.append(Check(id: "hook", title: "hook.sh", detail: T("En ~/.carita y ejecutable", "In ~/.carita and executable"), level: .ok))
         }
 
         // 4. python3
         let py = fm.isExecutableFile(atPath: python)
-        list.append(Check(id: "python", title: "python3", detail: py ? python : "No está; instala las Command Line Tools (xcode-select --install)",
+        list.append(Check(id: "python", title: "python3", detail: py ? python : T("No está; instala las Command Line Tools (xcode-select --install)", "Missing; install the Command Line Tools (xcode-select --install)"),
                           level: py ? .ok : .bad))
 
         // 5. versión de los scripts
         let v = Scripts.version(at: helperPath) ?? "?"
         let same = Scripts.upToDate()
-        list.append(Check(id: "version", title: "Versión de los scripts",
-                          detail: same ? "\(v), igual que la app" : "~/.carita tiene la \(v) y la app es la \(info.appVersion)",
+        list.append(Check(id: "version", title: T("Versión de los scripts", "Scripts version"),
+                          detail: same ? T("\(v), igual que la app", "\(v), same as the app") : T("~/.carita tiene la \(v) y la app es la \(info.appVersion)", "~/.carita has \(v) and the app is \(info.appVersion)"),
                           level: same ? .ok : .warn))
 
         // 6. terminal y voz
         let term = ((try? String(contentsOfFile: termPath, encoding: .utf8)) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let termName = term.isEmpty ? nil : NSWorkspace.shared.urlForApplication(withBundleIdentifier: term)
             .map { FileManager.default.displayName(atPath: $0.path) } ?? term
-        list.append(Check(id: "term", title: "Terminal detectada", detail: termName ?? "Aún ninguna (se detecta al empezar una sesión)",
+        list.append(Check(id: "term", title: T("Terminal detectada", "Detected terminal"), detail: termName ?? T("Aún ninguna (se detecta al empezar una sesión)", "None yet (detected when a session starts)"),
                           level: termName == nil ? .warn : .ok))
-        list.append(Check(id: "voice", title: "Voz", detail: info.voiceName(), level: .ok))
+        list.append(Check(id: "voice", title: T("Voz", "Voice"), detail: info.voiceName(), level: .ok))
 
         checks = list
 
@@ -208,11 +208,11 @@ final class DiagnosticsModel: NSObject, ObservableObject {
             if let a = info.lastArrival(), a.at >= t {
                 testStarted = nil
                 busy = false
-                message = ("¡Llega! Carita ha recibido «\(a.state)» en \(Int(a.at.timeIntervalSince(t) * 1000)) ms.", true)
+                message = (T("¡Llega! Carita ha recibido «\(a.state)» en \(Int(a.at.timeIntervalSince(t) * 1000)) ms.", "It works! Carita got “\(a.state)” in \(Int(a.at.timeIntervalSince(t) * 1000)) ms."), true)
             } else if Date().timeIntervalSince(t) > 4 {
                 testStarted = nil
                 busy = false
-                message = ("No ha llegado nada en 4 s. Prueba «Reinstalar hooks».", false)
+                message = (T("No ha llegado nada en 4 s. Prueba «Reinstalar hooks».", "Nothing arrived in 4 s. Try “Reinstall hooks”."), false)
             }
         }
     }
@@ -227,7 +227,7 @@ final class DiagnosticsModel: NSObject, ObservableObject {
     /// Ejecuta hook.sh como lo haría Claude Code y mira si la app se entera.
     func test() {
         guard FileManager.default.isExecutableFile(atPath: hookPath) else {
-            message = ("No hay hook.sh que probar. Prueba «Reinstalar hooks».", false)
+            message = (T("No hay hook.sh que probar. Prueba «Reinstalar hooks».", "There's no hook.sh to test. Try “Reinstall hooks”."), false)
             return
         }
         busy = true
@@ -245,16 +245,16 @@ final class DiagnosticsModel: NSObject, ObservableObject {
 
     func report() -> String {
         let icon: (Check.Level) -> String = { $0 == .ok ? "✅" : $0 == .warn ? "🟠" : "🔴" }
-        var lines = ["Diagnóstico de Carita \(info.appVersion) — macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"]
+        var lines = [T("Diagnóstico de Carita", "Carita diagnostics") + " \(info.appVersion) — macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"]
         lines += checks.map { "\(icon($0.level)) \($0.title): \($0.detail)" }
-        if let m = message { lines.append("Último resultado: \(m.text)") }
+        if let m = message { lines.append(T("Último resultado: ", "Last result: ") + m.text) }
         return lines.joined(separator: "\n")
     }
 
     func copyReport() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(report(), forType: .string)
-        message = ("Informe copiado. Pégamelo donde quieras.", true)
+        message = (T("Informe copiado. Pégamelo donde quieras.", "Report copied. Paste it wherever you like."), true)
     }
 }
 
@@ -278,17 +278,17 @@ struct DiagnosticsView: View {
             }
             Section {
                 HStack {
-                    Button { model.reinstall() } label: { Label("Reinstalar hooks", systemImage: "wrench.and.screwdriver") }
-                    Button { model.test() } label: { Label("Probar", systemImage: "bolt") }.disabled(model.busy)
+                    Button { model.reinstall() } label: { Label(T("Reinstalar hooks", "Reinstall hooks"), systemImage: "wrench.and.screwdriver") }
+                    Button { model.test() } label: { Label(T("Probar", "Test"), systemImage: "bolt") }.disabled(model.busy)
                     Spacer()
-                    Button { model.copyReport() } label: { Label("Copiar informe", systemImage: "doc.on.doc") }
+                    Button { model.copyReport() } label: { Label(T("Copiar informe", "Copy report"), systemImage: "doc.on.doc") }
                 }
                 if let m = model.message {
                     Label(m.text, systemImage: m.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                         .foregroundColor(m.ok ? .green : .orange)
                 }
             } footer: {
-                Hint("«Probar» ejecuta hook.sh como lo haría Claude Code y comprueba que Carita se entera. Tras reinstalar, las sesiones de Claude Code que ya estaban abiertas no lo notan: abre una nueva.")
+                Hint(T("«Probar» ejecuta hook.sh como lo haría Claude Code y comprueba que Carita se entera. Tras reinstalar, las sesiones de Claude Code que ya estaban abiertas no lo notan: abre una nueva.", "“Test” runs hook.sh the way Claude Code would and checks that Carita notices. After reinstalling, Claude Code sessions that were already open won't notice: open a new one."))
             }
         }
         .formStyle(.grouped)
@@ -305,7 +305,7 @@ final class DiagnosticsWindow: NSObject, NSWindowDelegate {
             let m = DiagnosticsModel(info: info)
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 470),
                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            w.title = "Diagnóstico de Carita"
+            
             w.isReleasedWhenClosed = false
             w.delegate = self
             w.contentViewController = NSHostingController(rootView: DiagnosticsView(model: m))
@@ -314,6 +314,7 @@ final class DiagnosticsWindow: NSObject, NSWindowDelegate {
             model = m
         }
         model?.start()
+        window?.title = T("Diagnóstico de Carita", "Carita Diagnostics")   // por si has cambiado de idioma
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
     }

@@ -171,7 +171,7 @@ SHAPE_RULES = [
     ("pelusita", ("claude", "agent", "mcp", "skill", "prompt")),
     ("mandarina", ("blog", "reel", "insta", "video", "redes", "social", "articulo")),
     ("alubia", ("app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend")),
-    ("gotita", ("notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox")),
+    ("gotita", ("notas", "notes", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox")),
 ]
 
 
