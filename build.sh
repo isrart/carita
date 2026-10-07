@@ -49,6 +49,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
-codesign --force --deep -s - "$APP" >/dev/null 2>&1 || true
+# Firma: con el certificado propio si está (así macOS no olvida los permisos de micrófono y
+# accesibilidad al actualizar); si no, ad hoc. En GitHub Actions el llavero lo crea el workflow.
+KC="${CARITA_KEYCHAIN:-$HOME/Library/Keychains/carita-firma.keychain-db}"
+KCPASS_FILE="${CARITA_KEYCHAIN_PASS_FILE:-$HOME/.config/carita/keychain.pass}"
+IDENTITY="Carita (firma propia)"
+if [ -f "$KC" ] && [ -f "$KCPASS_FILE" ] && security unlock-keychain -p "$(cat "$KCPASS_FILE")" "$KC" 2>/dev/null \
+   && codesign --force --deep --keychain "$KC" -s "$IDENTITY" "$APP" 2>/dev/null; then
+  echo "🔏 Firmada con «${IDENTITY}»"
+else
+  codesign --force --deep -s - "$APP" >/dev/null 2>&1 || true
+  echo "🔏 Firma ad hoc (no está el certificado propio)"
+fi
 touch "$APP"   # para que el Finder pille el icono nuevo
 echo "✅ $APP"

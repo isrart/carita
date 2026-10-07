@@ -34,6 +34,28 @@ jobs:
             exit 1
           fi
 
+      - name: Preparar la firma propia
+        # el mismo certificado que en el Mac de Isra: así macOS no olvida los permisos al actualizar
+        env:
+          P12: ${{ secrets.CARITA_P12 }}
+          P12_PASS: ${{ secrets.CARITA_P12_PASS }}
+        run: |
+          if [ -z "$P12" ]; then echo "Sin certificado: se firmará ad hoc"; exit 0; fi
+          KC="$RUNNER_TEMP/carita-firma.keychain-db"
+          KCPASS="$(openssl rand -hex 16)"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/firma.p12"
+          security create-keychain -p "$KCPASS" "$KC"
+          security set-keychain-settings "$KC"
+          security unlock-keychain -p "$KCPASS" "$KC"
+          security import "$RUNNER_TEMP/firma.p12" -k "$KC" -P "$P12_PASS" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPASS" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain .github/carita-firma.pem
+          printf '%s' "$KCPASS" > "$RUNNER_TEMP/kc.pass"
+          rm "$RUNNER_TEMP/firma.p12"
+          echo "CARITA_KEYCHAIN=$KC" >> "$GITHUB_ENV"
+          echo "CARITA_KEYCHAIN_PASS_FILE=$RUNNER_TEMP/kc.pass" >> "$GITHUB_ENV"
+
       - name: Compilar Carita.app
         run: bash build.sh
 
@@ -43,6 +65,7 @@ jobs:
           cd build
           ditto -c -k --sequesterRsrc --keepParent Carita.app Carita.zip
           codesign --verify --deep --strict Carita.app && echo "firma OK"
+          codesign -d -r- Carita.app 2>&1 | tail -1
 
       - uses: actions/upload-artifact@v4
         with:
