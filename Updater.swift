@@ -107,7 +107,9 @@ final class Updater: NSObject, URLSessionDataDelegate, URLSessionDownloadDelegat
             guard unzipCode == 0 else { return fail("No pude descomprimirla: \(unzipOut)") }
             let newApp = work.appendingPathComponent("Carita.app")
             let plist = NSDictionary(contentsOf: newApp.appendingPathComponent("Contents/Info.plist"))
-            guard plist?["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier,
+            // la 1.14 cambió de identidad (com.bajovelo.carita → io.github.isrart.carita): valen las dos
+            let ids: Set<String> = ["io.github.isrart.carita", "com.bajovelo.carita"]
+            guard let newID = plist?["CFBundleIdentifier"] as? String, ids.contains(newID),
                   plist?["CFBundleShortVersionString"] as? String == rel.version else {
                 return fail("El zip descargado no es la Carita \(rel.version)")
             }

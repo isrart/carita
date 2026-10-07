@@ -567,6 +567,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let first = Creature(app: self, origin: nil)
         creatures = [first]
+        // hasta la 1.13 la app era com.bajovelo.carita: su sitio en la pantalla se copia una vez
+        if UserDefaults.standard.string(forKey: "NSWindow Frame CaritaWindow2") == nil,
+           let old = UserDefaults(suiteName: "com.bajovelo.carita")?.string(forKey: "NSWindow Frame CaritaWindow2") {
+            UserDefaults.standard.set(old, forKey: "NSWindow Frame CaritaWindow2")
+        }
         // recuerda dónde lo dejaste, siempre que siga dentro de alguna pantalla
         let fallback = first.panel.frame
         if first.panel.setFrameUsingName("CaritaWindow2") {

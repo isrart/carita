@@ -37,7 +37,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
   <key>CFBundleName</key><string>Carita</string>
   <key>CFBundleDisplayName</key><string>Carita</string>
-  <key>CFBundleIdentifier</key><string>com.bajovelo.carita</string>
+  <key>CFBundleIdentifier</key><string>io.github.isrart.carita</string>
   <key>CFBundleExecutable</key><string>Carita</string>
   <key>CFBundleIconFile</key><string>Carita</string>
   <key>CFBundlePackageType</key><string>APPL</string>
