@@ -20,6 +20,13 @@ Un bichito que flota encima de todo en tu Mac y pone cara a lo que hace Claude C
 
 Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquillas. Si pasa minuto y medio sin novedades, se queda quieta (sin dejar de mirarte ni de parpadear) para no gastar batería.
 
+## Sorpresas (para jugar con el ratón)
+
+- **Ataque de cosquillas**: 8 clics rápidos y se cae de espaldas pataleando de risa.
+- **Mareo**: zarandéalo arrastrándolo de lado a lado y se le ponen los ojos en espiral.
+- **«¡Que me caigo!»**: llévalo al borde de la pantalla y se agarra asustado.
+- **Hambre**: deja el puntero quieto encima un rato… y ¡ñam! (es broma).
+
 ## Un bicho por sesión
 
 Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo: el que le pongas con `/rename` en Claude Code o, si no, el de la carpeta. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.

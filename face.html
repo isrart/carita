@@ -234,6 +234,39 @@ html.app .bubble{display:none}
 #c[data-s="stretch"] .bodyg{animation:stretchy 2.2s ease-in-out infinite}
 @keyframes stretchy{50%{transform:scale(.95,1.09)}}
 
+/* ---------- easter eggs ---------- */
+/* tickle attack: falls on its back laughing and kicking */
+#c[data-s="giggle"] .all{animation:fallback .45s cubic-bezier(.3,1.4,.5,1) forwards}
+@keyframes fallback{to{transform:translate(26px,-22px) rotate(-62deg)}}
+#c[data-s="giggle"] .foot{animation:kick .18s ease-in-out infinite alternate}
+#c[data-s="giggle"] .foot:nth-of-type(2){animation-delay:.09s}
+@keyframes kick{from{transform:translateY(0) rotate(-10deg)}to{transform:translateY(-7px) rotate(12deg)}}
+#c[data-s="giggle"] .arm-l{animation:flail .2s ease-in-out infinite alternate}
+#c[data-s="giggle"] .arm-r{animation:flailR .2s ease-in-out .1s infinite alternate}
+@keyframes flail{from{transform:rotate(40deg)}to{transform:rotate(110deg)}}
+@keyframes flailR{from{transform:rotate(-40deg)}to{transform:rotate(-110deg)}}
+#c[data-s="giggle"] .bodyg{animation:laugh .14s ease-in-out infinite alternate}
+@keyframes laugh{to{transform:scale(1.03,.97)}}
+#c[data-s="giggle"] .blush{opacity:.95}
+/* dizzy: spiral eyes and wobbling */
+.es{opacity:0}
+#c[data-eyes="spiral"] .es{opacity:1;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#c[data-s="dizzy"] .all{animation:woozy 1.2s ease-in-out infinite}
+@keyframes woozy{0%,100%{transform:rotate(-8deg) translateX(-3px)}50%{transform:rotate(8deg) translateX(3px)}}
+/* at the edge of the screen: holds on, scared */
+#c.scared .arm-l{transform:rotate(150deg)!important}
+#c.scared .arm-r{transform:rotate(-150deg)!important}
+#c.scared .all{animation:shiver .09s linear infinite alternate}
+@keyframes shiver{from{transform:translateX(-1.2px)}to{transform:translateX(1.2px)}}
+#c.scared .big{transform:scale(1.18)}
+#c.scared .sweat{opacity:1}
+/* hungry: the pointer has been still on top for a while — the mouth opens… and chomp */
+#c.hungry .m-yawn{animation:gape 3s ease-in forwards}
+@keyframes gape{from{transform:scale(.5)}to{transform:scale(1.9,1.7)}}
+#c.chomp .mouth{animation:chomp .12s ease-in-out 4 alternate}
+@keyframes chomp{to{transform:scaleY(.2)}}
+
 /* seated on the sofa (several creatures resting): no feet or shadow, the cushion covers them */
 #c.seated .foot,#c.seated .shadow{opacity:0}
 #c.seated .all{transform:translateY(6px)}
@@ -402,6 +435,7 @@ html.app .bubble{display:none}
             <path class="eye-alt eh" d="M66 116 Q78 100 90 116" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
             <path class="eye-alt ec" d="M66 113 Q78 122 90 113" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
             <path class="eye-alt ex" d="M68 103 L87 112 L68 121" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="es" d="M78 112 a2 2 0 0 1 4 0 a4 4 0 0 1 -8 0 a6 6 0 0 1 12 0 a8 8 0 0 1 -16 0 a10 10 0 0 1 20 0" stroke="var(--ink)" stroke-width="3" fill="none" stroke-linecap="round"/>
           </g></g>
           <g class="eye-r"><g class="big">
             <g class="eo"><g class="blinker">
@@ -411,6 +445,7 @@ html.app .bubble{display:none}
             <path class="eye-alt eh" d="M110 116 Q122 100 134 116" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round"/>
             <path class="eye-alt ec" d="M110 113 Q122 122 134 113" stroke="var(--ink)" stroke-width="4" fill="none" stroke-linecap="round"/>
             <path class="eye-alt ex" d="M132 103 L113 112 L132 121" stroke="var(--ink)" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path class="es" d="M122 112 a2 2 0 0 1 -4 0 a4 4 0 0 1 8 0 a6 6 0 0 1 -12 0 a8 8 0 0 1 16 0 a10 10 0 0 1 -20 0" stroke="var(--ink)" stroke-width="3" fill="none" stroke-linecap="round"/>
           </g></g>
 
           <!-- sleepy lids -->
@@ -556,6 +591,12 @@ html.app .bubble{display:none}
     stretch: ["Llevamos {t} sin parar. ¿Te estiras?", "{t} dándole… ¿un descanso, {n}?"],
     mask: ["Pues yo me pongo el antifaz. Tú verás.", "Yo descanso aunque tú no, ¿eh?"],
     rested: ["¡Qué bien sienta un descanso!", "Mucho mejor, ¿eh?"],
+    giggle: ["¡Jajaja! ¡Me rindo, me rindo!", "¡Para, para, que me meo! ¡Jajaja!", "¡Vale, vale, tú ganas! Jajaja"],
+    dizzy: ["Ay, que me mareo…", "¿Quién ha movido el mundo?", "Todo me da vueltas… ¡Uy!"],
+    edge: ["¡Que me caigo!", "¡Ay, ay, ay! ¡Sujétame!", "¡Uy! ¡Que esto es un precipicio!"],
+    chomp: ["¡ÑAM!", "¡Ñam, ñam!"],
+    chompJoke: ["Jeje, ¡era broma!", "Tranquilo, que no muerdo… mucho", "Puaj, sabe a plástico"],
+    hungryNo: ["¡Uy! Casi te lo como", "¡Eh, vuelve aquí, ratoncito!"],
     idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
   };
 
@@ -593,6 +634,8 @@ html.app .bubble{display:none}
     deploying: {eyes:"open",    mouth:"grit",   brows:"up",    talk:1},
     shipped:   {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, speak:1, lock:5500, after:["idle", 9000]},
     stretch:   {eyes:"closed",  mouth:"yawn",   brows:"none",  talk:1, speak:1, lock:6000, after:["idle", 7000]},
+    giggle:    {eyes:"squeeze", mouth:"big",    brows:"none",  talk:1, speak:1, lock:4200},
+    dizzy:     {eyes:"spiral",  mouth:"wobble", brows:"none",  talk:1, lock:3500},
     bye:       {eyes:"happy",   mouth:"big",    brows:"none",  talk:1, after:["sleepy", 5000]}
   };
   // where the pupils go when not following the mouse
@@ -715,7 +758,23 @@ html.app .bubble{display:none}
     if (s === cur && !["done", "asking", "hello", "bye"].includes(s)) return;
     apply(s);
   }
+  // un momento especial (huevo de pascua) y luego vuelve a lo que estaba haciendo
+  let eggT;
+  function eggStart(s, ms) {
+    if (cur === "giggle" || cur === "dizzy") return;
+    const back = cur === "poke" ? (svg.dataset.back || "idle") : cur;
+    clearTimeout(pokeT); clearTimeout(eggT);
+    apply(s);
+    eggT = setTimeout(() => apply(["done", "hello", "poke"].includes(back) ? "idle" : back, true), ms);
+  }
+  // 8 cosquillas seguidas: ataque de risa
+  let pokes = [];
   function poke() {
+    const now = Date.now();
+    pokes = pokes.filter(t => now - t < 3500);
+    pokes.push(now);
+    if (cur === "giggle" || cur === "dizzy") return;
+    if (pokes.length >= 8) { pokes = []; eggStart("giggle", 5000); return; }
     const back = cur === "poke" ? (svg.dataset.back || "idle") : cur;
     svg.dataset.back = back;
     apply("poke");
@@ -754,6 +813,40 @@ html.app .bubble{display:none}
       bubbleT = setTimeout(() => { if (!bubble.dataset.sticky) hideBubble(); }, 1200);
     }
   }
+  // zarandeado: ojos en espiral
+  function dizzy() { eggStart("dizzy", 4500); }
+  function restoreFace() {
+    if (!S[cur]) return;
+    svg.dataset.mouth = S[cur].mouth; svg.dataset.eyes = S[cur].eyes; svg.dataset.brows = S[cur].brows;
+  }
+  // arrastrado al borde de la pantalla: se agarra con cara de susto
+  let edgeOn = false;
+  function edge(on) {
+    on = !!on;
+    if (on === edgeOn) return;
+    edgeOn = on;
+    svg.classList.toggle("scared", on);
+    wake();
+    if (on) { svg.dataset.mouth = "wow"; svg.dataset.brows = "up"; say(pick("edge")); }
+    else restoreFace();
+  }
+  // el puntero lleva un rato quieto encima: abre la boca muy despacio… y ¡ñam!
+  let hungryT = [];
+  function hungry(on) {
+    hungryT.forEach(clearTimeout); hungryT = [];
+    if (!on) {
+      if (svg.classList.contains("hungry")) { svg.classList.remove("hungry"); restoreFace(); say(pick("hungryNo")); }
+      return;
+    }
+    if (S[cur] && S[cur].work) return;   // trabajando no se distrae
+    wake();
+    svg.classList.add("hungry"); svg.dataset.mouth = "yawn"; svg.dataset.eyes = "open";
+    hungryT.push(setTimeout(() => {
+      svg.classList.remove("hungry"); svg.classList.add("chomp");
+      svg.dataset.mouth = "big"; svg.dataset.eyes = "happy"; say(pick("chomp"));
+    }, 3200));
+    hungryT.push(setTimeout(() => { svg.classList.remove("chomp"); restoreFace(); say(pick("chompJoke")); }, 4700));
+  }
   // sentado en el sofá con los demás bichos
   function sit(on) {
     svg.classList.toggle("seated", !!on);
@@ -785,7 +878,7 @@ html.app .bubble{display:none}
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;
     if ("frases" in c) setFrases(c.frases);
   }
-  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit,
+  window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit, dizzy, edge, hungry,
     frasesDeSerie: () => FRASES_SERIE};
 
   // fireworks particles
@@ -860,7 +953,11 @@ html.app .bubble{display:none}
     ["travel","Te busca","te necesita y estás en otra app"],
     ["stretch","Descanso","90 min sin parar"],
     ["mask","Antifaz","si ignoras el descanso"],
-    ["poke","Cosquillas","clic encima"]
+    ["poke","Cosquillas","clic encima"],
+    ["giggle","Ataque de risa","8 clics seguidos"],
+    ["dizzy","Mareo","zarandéalo"],
+    ["edge","¡Que me caigo!","al borde de la pantalla"],
+    ["hungry","Hambre","puntero quieto encima"]
   ];
   const DEMO_REPLY = "Arreglado el bug del login y añadidos 3 tests. Falta revisar el deploy.";
   function demoReply() {
@@ -882,6 +979,10 @@ html.app .bubble{display:none}
   function run(s) {
     if (s !== "mask") setMasked(false);
     if (s === "poke") poke();
+    else if (s === "giggle") { for (let i = 0; i < 8; i++) poke(); }
+    else if (s === "dizzy") dizzy();
+    else if (s === "edge") { edge(true); setTimeout(() => edge(false), 2600); }
+    else if (s === "hungry") hungry(true);
     else if (s === "reply") demoReply();
     else if (s === "stretch") { apply("stretch", false, pick("stretch", duration(BREAK_AFTER))); clearTimeout(afterT); }
     else if (s === "mask") { apply("idle"); setMasked(true); say(pick("mask")); markChip("mask"); }

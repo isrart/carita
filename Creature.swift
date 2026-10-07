@@ -61,6 +61,16 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     var dragging = false
     private var onArrive: (() -> Void)?
 
+    // huevos de pascua del ratón
+    private var shakeX: CGFloat = 0
+    private var shakeDir: CGFloat = 0
+    private var shakeTurns: [Date] = []
+    private var lastDizzy = Date.distantPast
+    private var atEdge = false
+    private var hungryTimer: Timer?
+    private var hungry = false
+    private var lastMouse = NSPoint(x: -1, y: -1)
+
     // viaje hasta ti cuando te necesita
     var homeOrigin: NSPoint?
     var travelTimer: Timer?
@@ -105,6 +115,7 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         drag.onClick = { [weak self] in self?.clicked() }
         drag.onDragStart = { [weak self] in self?.dragStarted() }
         drag.onDragEnd = { [weak self] in self?.dragEnded() }
+        drag.onDragMove = { [weak self] in self?.dragMoved() }
         drag.onMouseMoved = { [weak self] in self?.mouseMoved() }
         container.addSubview(drag)
         panel.contentView = container
@@ -318,12 +329,33 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
             js(String(format: "carita.look(%.3f,%.3f)", dx, dy))
         }
 
+        // el puntero quieto encima un buen rato: le entra hambre (solo cuenta si el ratón se ha movido de verdad)
+        let over = isOverCreature(mouse)
+        if mouse != lastMouse {
+            lastMouse = mouse
+            hungryTimer?.invalidate()
+            hungryTimer = nil
+            if hungry { hungry = false; js("carita.hungry(false)") }
+            if over && NSEvent.pressedMouseButtons == 0 {
+                hungryTimer = Timer.scheduledTimer(timeInterval: 6, target: self, selector: #selector(getHungry), userInfo: nil, repeats: false)
+            }
+        }
+
         // el resto de la ventana deja pasar el clic a lo que haya detrás. No se toca mientras arrastras.
         if NSEvent.pressedMouseButtons == 0 {
-            let over = isOverCreature(mouse)
             if panel.ignoresMouseEvents == over { panel.ignoresMouseEvents = !over; debugLog("\(name): clicable \(over)") }
         }
     }
+
+    @objc func getHungry() {
+        hungryTimer = nil
+        guard isOverCreature(NSEvent.mouseLocation), NSEvent.pressedMouseButtons == 0, !dragging else { return }
+        hungry = true
+        js("carita.hungry(true)")
+        // la cara hace todo el número (abrir la boca, ¡ñam!, «era broma») en unos 5 s
+        Timer.scheduledTimer(timeInterval: 5, target: self, selector: #selector(hungryOver), userInfo: nil, repeats: false)
+    }
+    @objc func hungryOver() { hungry = false }
 
     /// ¿Está el ratón encima del cuerpo (hoja, brazos y pies incluidos)?
     func isOverCreature(_ p: NSPoint) -> Bool {
@@ -490,5 +522,37 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
     func dragEnded() {
         dragging = false
         homeOrigin = nil   // si lo sueltas en otro sitio, se queda ahí
+        shakeTurns = []
+        if atEdge { atEdge = false; js("carita.edge(false)") }
+    }
+
+    /// Mientras lo arrastras: si lo zarandeas (4 cambios de sentido en 1,6 s) se marea;
+    /// si lo llevas al borde de la pantalla, se agarra asustado.
+    func dragMoved() {
+        let x = panel.frame.minX
+        let dx = x - shakeX
+        if abs(dx) > 25 {
+            let dir: CGFloat = dx > 0 ? 1 : -1
+            if dir != shakeDir && shakeDir != 0 { shakeTurns.append(Date()) }
+            shakeDir = dir
+            shakeX = x
+        }
+        shakeTurns = shakeTurns.filter { Date().timeIntervalSince($0) < 1.6 }
+        if shakeTurns.count >= 4 && Date().timeIntervalSince(lastDizzy) > 6 {
+            lastDizzy = Date()
+            shakeTurns = []
+            js("carita.dizzy()")
+        }
+
+        // el cuerpo (elipse del dibujo) contra los bordes de la pantalla donde está
+        let s = panel.frame.width / VB_W
+        let center = screenPoint(100, 112)
+        let body = NSRect(x: center.x - 80 * s, y: center.y - 82 * s, width: 160 * s, height: 164 * s)
+        let screen = NSScreen.screens.first { $0.frame.contains(center) }?.frame ?? panel.screen?.frame ?? body
+        let near = body.minX < screen.minX + 4 || body.maxX > screen.maxX - 4 || body.minY < screen.minY + 4
+        if near != atEdge {
+            atEdge = near
+            js("carita.edge(\(near))")
+        }
     }
 }

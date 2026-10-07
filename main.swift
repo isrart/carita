@@ -307,6 +307,7 @@ final class DragView: NSView {
     var onClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragEnd: (() -> Void)?
+    var onDragMove: (() -> Void)?
     var onMouseMoved: (() -> Void)?
     private var startMouse = NSPoint.zero
     private var startOrigin = NSPoint.zero
@@ -339,6 +340,7 @@ final class DragView: NSView {
         if !moved { onDragStart?() }
         moved = true
         win.setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
+        onDragMove?()
     }
 
     override func mouseUp(with event: NSEvent) {
