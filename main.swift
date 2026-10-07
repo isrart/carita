@@ -619,6 +619,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
                                                name: NSWindow.didResizeNotification, object: panel)
         startWatching()
+
+        // al dormir o bloquear, que el bicho no se quede con los clics (si el sistema pierde el «soltar»
+        // de un clic al despertar, todos los clics podrían acabar en su ventana)
+        let ws = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.screensDidSleepNotification,
+                     NSWorkspace.sessionDidResignActiveNotification] {
+            ws.addObserver(self, selector: #selector(systemWillSleep), name: name, object: nil)
+        }
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification,
+                     NSWorkspace.sessionDidBecomeActiveNotification] {
+            ws.addObserver(self, selector: #selector(systemDidWake), name: name, object: nil)
+        }
+    }
+
+    @objc func systemWillSleep() {
+        debugLog("el Mac se duerme o se bloquea: el bicho deja pasar los clics")
+        stopTravel()
+        panel.ignoresMouseEvents = true
+    }
+
+    @objc func systemDidWake() {
+        debugLog("el Mac despierta")
+        panel.ignoresMouseEvents = true
+        // un segundo para que el sistema se asiente antes de volver a mirar dónde está el ratón
+        Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(fallbackTick), userInfo: nil, repeats: false)
     }
 
     // MARK: vigilar archivos y ratón (sin sondeo continuo)
