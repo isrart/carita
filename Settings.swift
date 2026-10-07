@@ -16,6 +16,14 @@ struct CostumeRule: Codable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey { case palabras, disfraz }
 }
 
+/// Palabras de la ruta del proyecto → forma del bicho (redondita, alubia, gotita, mandarina, pelusita).
+struct ShapeRule: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var palabras: [String]
+    var forma: String
+    enum CodingKeys: String, CodingKey { case palabras, forma }
+}
+
 /// Un cumpleaños: ese día llevan gorro de fiesta y el primer bicho le canta.
 struct Cumple: Codable, Hashable, Identifiable {
     var id = UUID()
@@ -39,6 +47,8 @@ struct Config: Codable, Equatable {
     var antifazMinutos: Double = 10
     var pausaMinutos: Double = 5
     var disfraces = Config.reglasDeSerie
+    var forma = "auto"
+    var formas = Config.formasDeSerie
     var noMolestarCamara = true
     var noMolestarPantalla = true
     var atajoMostrar = Shortcut.toggleDefault.array   // [] = sin atajo
@@ -60,7 +70,17 @@ struct Config: Codable, Equatable {
         CostumeRule(palabras: ["bajovelo", "vino", "wine", "sommelier"], disfraz: "vino"),
     ]
 
+    /// Las mismas que SHAPE_RULES de carita.py.
+    static let formasDeSerie = [
+        ShapeRule(palabras: ["claude", "agent", "mcp", "skill", "prompt"], forma: "pelusita"),
+        ShapeRule(palabras: ["blog", "reel", "insta", "video", "redes", "social", "articulo"], forma: "mandarina"),
+        ShapeRule(palabras: ["app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend"], forma: "alubia"),
+        ShapeRule(palabras: ["notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox"], forma: "gotita"),
+        ShapeRule(palabras: ["bajovelo", "vino"], forma: "redondita"),
+    ]
+
     enum CodingKeys: String, CodingKey {
+        case forma, formas
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
         case atajoMostrar, atajoCallar, atajoHablar, cumples, cumpleCantado, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
@@ -86,6 +106,8 @@ struct Config: Codable, Equatable {
         antifazMinutos = v(.antifazMinutos, d.antifazMinutos)
         pausaMinutos = v(.pausaMinutos, d.pausaMinutos)
         disfraces = v(.disfraces, d.disfraces)
+        forma = v(.forma, d.forma)
+        formas = v(.formas, d.formas)
         noMolestarCamara = v(.noMolestarCamara, d.noMolestarCamara)
         noMolestarPantalla = v(.noMolestarPantalla, d.noMolestarPantalla)
         atajoMostrar = v(.atajoMostrar, d.atajoMostrar)
@@ -201,6 +223,11 @@ final class SettingsWindow {
         window?.makeKeyAndOrderFront(nil)
     }
 }
+
+let shapeNames: [(String, String)] = [
+    ("Redondita", "redondita"), ("Alubia alta", "alubia"), ("Gotita", "gotita"),
+    ("Mandarina con flor", "mandarina"), ("Pelusita", "pelusita"),
+]
 
 let costumeNames: [(String, String)] = [
     ("Sin disfraz", "none"), ("Bajovelo (boina y copa)", "vino"), ("Blog (pluma y cuaderno)", "vinoblog"),
@@ -403,6 +430,27 @@ struct CostumeTab: View {
                 }
             }
             Section {
+                Picker("Forma", selection: $store.c.forma) {
+                    Text("Automática (según el proyecto)").tag("auto")
+                    Divider()
+                    ForEach(shapeNames, id: \.1) { Text($0.0).tag($0.1) }
+                }
+                ForEach(Array(store.c.formas.enumerated()), id: \.element.id) { i, _ in
+                    ShapeRow(store: store, index: i)
+                }
+                HStack {
+                    Button { store.c.formas.append(ShapeRule(palabras: [], forma: "redondita")) } label: {
+                        Label("Añadir regla", systemImage: "plus")
+                    }
+                    Spacer()
+                    Button("Valores de serie") { store.c.formas = Config.formasDeSerie }
+                }
+            } header: {
+                Text("Forma del bicho")
+            } footer: {
+                Hint("Todas son Carita, en naranja. Igual que los disfraces: gana la primera regla con alguna palabra de la carpeta; en el archivo .carita también puedes poner una forma (p. ej., «blog alubia»).")
+            }
+            Section {
                 ForEach(Array(store.c.disfraces.enumerated()), id: \.element.id) { i, rule in
                     CostumeRow(store: store, index: i)
                 }
@@ -459,6 +507,45 @@ struct CostumeRow: View {
         let j = index + d
         guard j >= 0, j < store.c.disfraces.count else { return }
         store.c.disfraces.swapAt(index, j)
+    }
+}
+
+struct ShapeRow: View {
+    @ObservedObject var store: ConfigStore
+    let index: Int
+
+    var body: some View {
+        let rules = store.c.formas
+        HStack(spacing: 8) {
+            TextField("", text: Binding(
+                get: { index < rules.count ? rules[index].palabras.joined(separator: ", ") : "" },
+                set: { text in
+                    guard index < store.c.formas.count else { return }
+                    store.c.formas[index].palabras = text.split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }.filter { !$0.isEmpty }
+                }), prompt: Text("palabras, separadas por comas"))
+                .labelsHidden()
+            Image(systemName: "arrow.right").foregroundColor(.secondary)
+            Picker("", selection: Binding(
+                get: { index < rules.count ? rules[index].forma : "redondita" },
+                set: { if index < store.c.formas.count { store.c.formas[index].forma = $0 } })) {
+                ForEach(shapeNames, id: \.1) { Text($0.0).tag($0.1) }
+            }
+            .labelsHidden()
+            .frame(width: 180)
+            ControlGroup {
+                Button { move(-1) } label: { Image(systemName: "chevron.up") }.disabled(index == 0)
+                Button { move(1) } label: { Image(systemName: "chevron.down") }.disabled(index >= rules.count - 1)
+                Button { store.c.formas.remove(at: index) } label: { Image(systemName: "trash") }
+            }
+            .frame(width: 96)
+        }
+    }
+
+    func move(_ d: Int) {
+        let j = index + d
+        guard j >= 0, j < store.c.formas.count else { return }
+        store.c.formas.swapAt(index, j)
     }
 }
 

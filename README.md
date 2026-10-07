@@ -43,6 +43,20 @@ Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog
 
 Para que varios bichos parados no parezcan «un frutero lleno de naranjas»: cuando hay dos o más y llevan un minuto sin novedades, se van andando a un sofá y se sientan juntos (si se duermen, se apoyan en el de al lado). Cuando la sesión de uno hace algo, ese se levanta y se pone delante a trabajar; al acabar, vuelve a su plaza. Si sacas a uno del sofá arrastrándolo, se queda donde lo sueltes hasta que su sesión vuelva a hacer algo.
 
+## Cinco Caritas
+
+Siempre naranja, como Claude, pero con cinco formas, cada una con su cara: **redondita** (la de siempre), **alubia alta** (más seria, con párpados), **gotita** (ojitos de punto y boca de gato), **mandarina con flor** (pestañas y risa) y **pelusita** (ojos de pastilla, como la mascota de Claude Code). Sale una u otra según el proyecto, con reglas por palabras de la carpeta, como los disfraces:
+
+| Si la carpeta contiene… | Forma |
+|---|---|
+| claude, agent, mcp, skill, prompt | pelusita |
+| blog, reel, insta, video, redes, social, articulo | mandarina con flor |
+| app, api, swift, ios, web, carita, code, dev… | alubia alta |
+| notas, apuntes, scratch, prueba, test, tmp, sandbox | gotita |
+| lo demás (Bajovelo incluido) | redondita |
+
+Se cambia en Ajustes → Disfraces (también puedes fijar una forma para todos), o poniendo la forma en el archivo `.carita` del proyecto (p. ej., `blog alubia`).
+
 ## Disfraces según el proyecto
 
 En cualquier cosa de Bajovelo lleva la boina granate, y en la mano algo según el subproyecto. Lo deduce del nombre de la carpeta:

@@ -14,6 +14,7 @@ let stateDir = ProcessInfo.processInfo.environment["CARITA_DIR"]
 let statePath = (stateDir as NSString).appendingPathComponent("state")
 let sayPath = (stateDir as NSString).appendingPathComponent("say")
 let costumePath = (stateDir as NSString).appendingPathComponent("costume")
+let shapePath = (stateDir as NSString).appendingPathComponent("shape")
 let termPath = (stateDir as NSString).appendingPathComponent("term")
 let phrasesPath = (stateDir as NSString).appendingPathComponent("frases.json")
 let workStates: Set<String> = ["hello", "thinking", "reading", "writing", "running", "browsing", "delegating", "deploying"]
@@ -927,7 +928,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         c.lastInfoMTime = m
         let old = c.info
         c.info = SessionInfo(path: path) ?? SessionInfo()
-        if c.info.disfraz != old.disfraz { c.applyCostume() }
+        if c.info.disfraz != old.disfraz || c.info.forma != old.forma { c.applyCostume() }
         if c.info.proyecto != old.proyecto { updateLabels() }
     }
 
@@ -1458,7 +1459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for k in creatures where k.seated || k.goingToSofa { k.leaveSofa(returning: true) }
             for k in creatures { k.applyScale() }
         }
-        if c.disfraz != old.disfraz { for k in creatures { k.applyCostume() } }
+        if c.disfraz != old.disfraz || c.forma != old.forma { for k in creatures { k.applyCostume() } }
         if c.oculta != old.oculta || c.noMolestarCamara != old.noMolestarCamara || c.noMolestarPantalla != old.noMolestarPantalla {
             if away != wasAway { applyVisibility() }
         }

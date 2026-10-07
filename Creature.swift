@@ -9,6 +9,7 @@ struct SessionInfo: Equatable {
     var cwd = ""
     var proyecto = ""
     var disfraz = ""
+    var forma = ""
     var tty = ""
     var term = ""
 
@@ -19,6 +20,7 @@ struct SessionInfo: Equatable {
         cwd = obj["cwd"] as? String ?? ""
         proyecto = obj["proyecto"] as? String ?? ""
         disfraz = obj["disfraz"] as? String ?? ""
+        forma = obj["forma"] as? String ?? ""
         tty = obj["tty"] as? String ?? ""
         term = obj["term"] as? String ?? ""
     }
@@ -235,6 +237,9 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         var c = app.costumeChoice
         if c == "auto" { c = info.disfraz.isEmpty ? app.readWord(costumePath) : info.disfraz }
         js("carita.costume('\(c.isEmpty ? "none" : c)')")
+        var f = app.cfg.forma
+        if f == "auto" { f = info.forma.isEmpty ? (sessionID == nil ? app.readWord(shapePath) : "") : info.forma }
+        js("carita.shape('\(f.isEmpty ? "redondita" : f)')")
     }
 
     func clicked() {

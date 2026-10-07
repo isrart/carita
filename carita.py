@@ -165,6 +165,43 @@ RULES = [
 ]
 
 
+# La forma del bicho (variaciones de Carita, todas naranjas), igual que los disfraces: la primera que encaja.
+SHAPES = ("redondita", "alubia", "gotita", "mandarina", "pelusita")
+SHAPE_RULES = [
+    ("pelusita", ("claude", "agent", "mcp", "skill", "prompt")),
+    ("mandarina", ("blog", "reel", "insta", "video", "redes", "social", "articulo")),
+    ("alubia", ("app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend")),
+    ("gotita", ("notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox")),
+    ("redondita", ("bajovelo", "vino")),
+]
+
+
+def rules_from_config(key, field, default):
+    try:
+        with open(os.path.join(DIR, "config.json"), encoding="utf-8") as f:
+            rules = json.load(f).get(key)
+        if not isinstance(rules, list):
+            return default
+        return [(str(r[field]), tuple(str(w).lower() for w in r["palabras"] if str(w).strip())) for r in rules]
+    except Exception:
+        return default
+
+
+def pick_shape(cwd):
+    root = project_root(cwd)
+    override = os.path.join(root, ".carita")
+    if os.path.isfile(override):   # en .carita también vale una forma: «alubia», «blog mandarina»…
+        with open(override, encoding="utf-8", errors="ignore") as f:
+            for word in f.read().lower().split():
+                if word in SHAPES:
+                    return word
+    path = " ".join((root, os.path.abspath(cwd))).lower()
+    for shape, words in rules_from_config("formas", "forma", SHAPE_RULES):
+        if any(w in path for w in words):
+            return shape
+    return "redondita"
+
+
 def costume_rules():
     """Las reglas de config.json si están bien; si no, las de serie."""
     try:
@@ -186,7 +223,8 @@ def pick_costume(cwd):
     override = os.path.join(root, ".carita")
     if os.path.isfile(override):
         with open(override, encoding="utf-8", errors="ignore") as f:
-            word = re.sub(r"[^a-z]", "", (f.read().split() or ["none"])[0].lower())
+            words = [w for w in f.read().lower().split() if w not in SHAPES] or ["none"]
+            word = re.sub(r"[^a-z]", "", words[0])
         return SHORT.get(word, word or "none")
     name = ""
     try:
@@ -247,7 +285,7 @@ def write_info(data):
     if not sid or not cwd:
         return
     info = {"cwd": cwd, "proyecto": os.path.basename(project_root(cwd)) or "?",
-            "disfraz": pick_costume(cwd), "tty": os.environ.get("CARITA_TTY", ""),
+            "disfraz": pick_costume(cwd), "forma": pick_shape(cwd), "tty": os.environ.get("CARITA_TTY", ""),
             "term": os.environ.get("CARITA_TERM", "")}
     path = os.path.join(SESSIONS, sid + ".info")
     try:
@@ -293,6 +331,7 @@ def main():
     try:
         if event in ("hello", "prompt") and cwd:
             write("costume", pick_costume(cwd))
+            write("shape", pick_shape(cwd))
             write_info(data)
         elif event == "info":
             write_info(data)

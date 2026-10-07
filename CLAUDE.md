@@ -35,6 +35,9 @@ Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebV
 ### Estados (`~/.carita/state`)
 `hello, thinking, reading, writing, running, deploying, shipped, browsing, delegating, asking, done, bye` llegan de los hooks. `idle, sleepy, sleeping, stretch, poke` los decide `face.html`. Cada estado está en el objeto `S` de `face.html` (ojos, boca, cejas, si habla, `lock`, `after`) y sus frases en `FRASES` (variantes `…Vino` para Bajovelo).
 
+### Formas (`~/.carita/shape`, `forma` en `<id>.info`)
+`redondita, alubia, gotita, mandarina, pelusita`: variaciones de Carita, todas naranjas. Las elige `pick_shape()` en `carita.py` (reglas `formas` de `config.json`, o `SHAPE_RULES`; una forma en `.carita` manda). En `face.html`, `data-shape` cambia el cuerpo, lo de arriba (`.hw`: hoja, flor, brote, gorros, que suben o bajan con la cabeza) y la cara de serie (ojos abiertos y sonrisa); las demás expresiones son comunes.
+
 ### Disfraces (`~/.carita/costume`)
 `none, vino, vinoblog, vinorecursos, vinotrivia, vinoreels`. Los elige `pick_costume()` en `carita.py` por palabras en la ruta (reglas `disfraces` de `config.json`, o `RULES` de serie); un archivo `.carita` en la raíz del proyecto lo fuerza. En `face.html`, `data-costume` y `data-cbase="vino"` (boina siempre en Bajovelo).
 
