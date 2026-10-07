@@ -8,7 +8,9 @@ import ServiceManagement
 import CoreMediaIO
 import Carbon.HIToolbox
 
-let stateDir = (NSHomeDirectory() as NSString).appendingPathComponent(".carita")
+/// Para pruebas, `CARITA_DIR=/otra/carpeta` aísla la app de las sesiones reales de Claude Code.
+let stateDir = ProcessInfo.processInfo.environment["CARITA_DIR"]
+    ?? (NSHomeDirectory() as NSString).appendingPathComponent(".carita")
 let statePath = (stateDir as NSString).appendingPathComponent("state")
 let sayPath = (stateDir as NSString).appendingPathComponent("say")
 let costumePath = (stateDir as NSString).appendingPathComponent("costume")
@@ -758,6 +760,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         switch type {
         case "bubble":
             showBubble(text)
+        case "log":
+            debugLog("cara: " + text)
         case "event":
             if ["stretch", "mask"].contains(text) { History.append(text) }   // descansos, para las estadísticas
         case "sound":

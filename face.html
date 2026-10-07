@@ -240,6 +240,8 @@ html.app .bubble{display:none}
 
 /* dormido u oculto: todo quieto, para no gastar batería */
 #c.paused,#c.paused *{animation-play-state:paused!important}
+/* en reposo sin novedades: se queda quieto donde estaba (los ojos siguen al ratón y parpadea) */
+#c.still,#c.still *{animation-play-state:paused!important}
 
 @media (prefers-reduced-motion: reduce){ #c *,#c{animation-duration:0s!important;animation-iteration-count:1!important} }
 </style>
@@ -576,6 +578,18 @@ html.app .bubble{display:none}
   let lastActivity = Date.now(), lastBubble = 0, replyUntil = 0, isTalking = false;
   let afterT, bubbleT, pendingT, pokeT, queuedT, lockUntil = 0;
   let blinkT, loopT, paused = false, hiddenApp = false;
+  // repintar las animaciones continuas gasta ~40 % de CPU: en reposo, tras un rato quieto
+  const STILL_AFTER = 90e3;
+  let stillT;
+  function wake() {
+    svg.classList.remove("still");
+    clearTimeout(stillT);
+    if (APP) stillT = setTimeout(() => {
+      const ok = (cur === "idle" || cur === "sleepy") && !isTalking;
+      if (ok) svg.classList.add("still");
+      host.postMessage({type: "log", text: `quieto=${ok} (estado ${cur}, hablando ${isTalking})`});
+    }, STILL_AFTER);
+  }
   // break reminder: after this much continuous work, a stretch; if ignored, the sleep mask
   let BREAK_AFTER = 90 * 60e3, MASK_AFTER = 10 * 60e3, BREAK_GAP = 5 * 60e3;
   let workStart = Date.now(), breakAskedAt = 0, masked = false;
@@ -637,6 +651,7 @@ html.app .bubble{display:none}
     }
     if (cfg.after) afterT = setTimeout(() => apply(cfg.after[0], true), cfg.after[1]);
     updatePaused();
+    wake();
     markChip();
   }
 
@@ -702,6 +717,7 @@ html.app .bubble{display:none}
   }
   function talking(on) {
     isTalking = !!on;
+    wake();
     svg.classList.toggle("talking", isTalking);
     if (isTalking) {
       svg.dataset.mouth = "wow";
@@ -722,6 +738,7 @@ html.app .bubble{display:none}
     svg.dataset.cbase = c.startsWith("vino") ? "vino" : "none";
   }
   function travel(dir) {
+    wake();
     svg.classList.toggle("travel", !!dir);
     svg.style.setProperty("--lean", (dir * 9) + "deg");
   }

@@ -18,7 +18,7 @@ Un bichito que flota encima de todo en tu Mac y pone cara a lo que hace Claude C
 | 3 min sin nada               | bosteza                                   |
 | 12 min sin nada              | se duerme (con pompa de moco incluida)    |
 
-Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquillas.
+Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquillas. Si pasa minuto y medio sin novedades, se queda quieta (sin dejar de mirarte ni de parpadear) para no gastar batería.
 
 ## Disfraces según el proyecto
 
