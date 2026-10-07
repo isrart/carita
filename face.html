@@ -301,6 +301,10 @@ html.app .bubble{display:none}
 #c[data-shape="gotita"] .hw{transform:translateY(-26px)}
 #c[data-shape="mandarina"] .hw{transform:translateY(13px)}
 #c[data-shape="pelusita"] .hw{transform:translateY(-8px)}
+/* on the drop the hats sit lower than the sprout (the tip is too narrow to hold them) */
+#c[data-shape="gotita"] .hw.hats{transform:translateY(-6px)}
+/* with a beret or a hat, the flower hides underneath */
+#c[data-cbase="vino"] .flower,#c:not([data-hat="none"]) .flower,#c:not([data-hat="none"]) .brote{display:none!important}
 
 /* ---------- special days and hours ---------- */
 .sphat,.ghost,.coffee,.snow{opacity:0;transition:opacity .3s}
@@ -449,14 +453,14 @@ html.app .bubble{display:none}
           <ellipse cx="100" cy="150" rx="34" ry="20" fill="var(--clay-light)" opacity=".45"/>
 
           <!-- hard hat (running) -->
-          <g class="hw"><g class="prop hat">
+          <g class="hw hats"><g class="prop hat">
             <path d="M64 80 Q66 50 100 48 Q134 50 136 80 Z" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
             <path d="M100 49 L100 78" stroke="var(--ink)" stroke-width="2" opacity=".35"/>
             <rect x="56" y="76" width="88" height="8" rx="4" fill="var(--hat)" stroke="var(--ink)" stroke-width="2.5"/>
           </g></g>
 
           <!-- costumes: Bajovelo beret always, plus a prop per subproject -->
-          <g class="hw"><g class="cos cos-beret cos-hat">
+          <g class="hw hats"><g class="cos cos-beret cos-hat">
             <path class="cos-feather" d="M99 63 Q110 45 128 36 Q121 53 99 63 Z" fill="#FFF6E8" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>
             <path class="cos-feather" d="M102 60 Q114 47 125 39" stroke="var(--ink)" stroke-width="1.2" fill="none" opacity=".6"/>
             <ellipse cx="86" cy="68" rx="31" ry="11" fill="#7E1F33" stroke="var(--ink)" stroke-width="2.5" transform="rotate(-14 86 68)"/>
@@ -601,7 +605,7 @@ html.app .bubble{display:none}
           </g>
 
           <!-- special hats -->
-          <g class="hw">
+          <g class="hw hats">
           <g class="sphat hat-party" transform="rotate(-10 104 46)">
             <path d="M84 66 L104 18 L124 66 Z" fill="#FF8FA3" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
             <path d="M92 48 L114 52 M88 58 L120 62 M98 34 L110 36" stroke="#F5C242" stroke-width="3.5" stroke-linecap="round"/>
