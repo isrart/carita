@@ -69,7 +69,9 @@ Siempre naranja, como Claude, pero con cinco formas, cada una con su cara: **red
 
 Se cambia en Ajustes → Disfraces (también puedes fijar una forma para todos), o poniendo la forma en el archivo `.carita` del proyecto (p. ej., `blog alubia`).
 
-## Disfraces según el proyecto
+## Pack Bajovelo: disfraces según el proyecto
+
+Opcional: se activa en Ajustes → Aspecto → «Pack Bajovelo».
 
 En cualquier cosa de Bajovelo lleva la boina granate, y en la mano algo según el subproyecto. Lo deduce del nombre de la carpeta:
 

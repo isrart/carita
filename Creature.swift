@@ -234,7 +234,7 @@ final class Creature: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
 
     func applyCostume() {
         guard let app = app else { return }
-        var c = app.costumeChoice
+        var c = app.cfg.packBajovelo ? app.costumeChoice : "none"   // los disfraces son del pack Bajovelo
         if c == "auto" { c = info.disfraz.isEmpty ? app.readWord(costumePath) : info.disfraz }
         js("carita.costume('\(c.isEmpty ? "none" : c)')")
         var f = app.cfg.forma

@@ -131,6 +131,12 @@ final class StatsModel: ObservableObject {
     @Published var breaksAsked = 0
     @Published var breaksIgnored = 0
     @Published var empty = true
+    /// Con el pack Bajovelo, sus proyectos salen en color.
+    var bajovelo: Bool {
+        guard let data = FileManager.default.contents(atPath: configPath),
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return false }
+        return obj["packBajovelo"] as? Bool ?? false
+    }
     @Published var days: [Date] = []
 
     func reload() {
@@ -201,12 +207,12 @@ struct StatsView: View {
                 } else {
                     Chart(model.projects) { p in
                         BarMark(x: .value("Horas", p.hours), y: .value("Proyecto", p.id))
-                            .foregroundStyle(p.bajovelo ? clay : Color.secondary.opacity(0.6))
+                            .foregroundStyle(p.bajovelo || !model.bajovelo ? clay : Color.secondary.opacity(0.6))
                             .annotation(position: .trailing) { Text(hoursText(p.hours)).font(.caption).foregroundColor(.secondary) }
                     }
                     .chartXAxis(.hidden)
                     .frame(height: CGFloat(max(1, model.projects.count)) * 28 + 8)
-                    Hint("En color, los proyectos de Bajovelo. Cuenta cada pregunta hasta su respuesta y los ratos sin pausas de más de 5 minutos.")
+                    Hint((model.bajovelo ? "En color, los proyectos de Bajovelo. " : "") + "Cuenta cada pregunta hasta su respuesta y los ratos sin pausas de más de 5 minutos.")
                 }
             }
 

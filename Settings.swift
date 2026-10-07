@@ -34,7 +34,8 @@ struct Cumple: Codable, Hashable, Identifiable {
 }
 
 struct Config: Codable, Equatable {
-    var nombre = "Isra"
+    var nombre = Config.nombreDelMac
+    var packBajovelo = false     // disfraces de Bajovelo (boina, vino, cava): un pack opcional
     var tamano: Double = 1
     var disfraz = "auto"
     var leerRespuestas = true
@@ -62,7 +63,12 @@ struct Config: Codable, Equatable {
     var oculta = false
     var silenciadaHasta: Double?  // segundos desde 1970
 
-    /// Las mismas que tenía carita.py: los subproyectos antes que lo genérico de Bajovelo.
+    /// El nombre de pila del usuario del Mac («Israel García» → «Israel»).
+    static var nombreDelMac: String {
+        NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
+    }
+
+    /// Pack Bajovelo: las mismas que RULES de carita.py; los subproyectos antes que lo genérico.
     static let reglasDeSerie = [
         CostumeRule(palabras: ["trivia", "quiz", "preguntas", "denominacion"], disfraz: "vinotrivia"),
         CostumeRule(palabras: ["reel", "insta", "video", "redes", "social"], disfraz: "vinoreels"),
@@ -77,11 +83,10 @@ struct Config: Codable, Equatable {
         ShapeRule(palabras: ["blog", "reel", "insta", "video", "redes", "social", "articulo"], forma: "mandarina"),
         ShapeRule(palabras: ["app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend"], forma: "alubia"),
         ShapeRule(palabras: ["notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox"], forma: "gotita"),
-        ShapeRule(palabras: ["bajovelo", "vino"], forma: "redondita"),
     ]
 
     enum CodingKeys: String, CodingKey {
-        case forma, formas
+        case forma, formas, packBajovelo
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
         case enviarAlHablar
@@ -108,6 +113,7 @@ struct Config: Codable, Equatable {
         antifazMinutos = v(.antifazMinutos, d.antifazMinutos)
         pausaMinutos = v(.pausaMinutos, d.pausaMinutos)
         disfraces = v(.disfraces, d.disfraces)
+        packBajovelo = v(.packBajovelo, d.packBajovelo)
         forma = v(.forma, d.forma)
         formas = v(.formas, d.formas)
         noMolestarCamara = v(.noMolestarCamara, d.noMolestarCamara)
@@ -149,7 +155,14 @@ final class ConfigStore: ObservableObject {
         c = Config()
         if let data = FileManager.default.contents(atPath: configPath) {
             lastData = data
-            if let cfg = try? JSONDecoder().decode(Config.self, from: data) { c = cfg }
+            if var cfg = try? JSONDecoder().decode(Config.self, from: data) {
+                // quien ya usaba Carita antes de los packs (Isra) se queda con lo de Bajovelo
+                let keys = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]).map { Set($0.keys) } ?? []
+                let migrate = !keys.contains("packBajovelo") && keys.contains("disfraces")
+                if migrate { cfg.packBajovelo = true }
+                c = cfg
+                if migrate { save() }   // carita.py también lo lee del archivo
+            }
         } else {
             c = ConfigStore.migrateFromDefaults()
             save()
@@ -244,7 +257,7 @@ struct SettingsView: View {
 
     // con TabView, en ventanas estrechas macOS esconde las pestañas tras un «»»: barra propia, siempre visible
     static let tabs: [(String, String)] = [("General", "gearshape"), ("Voz", "speaker.wave.2"), ("Descanso", "cup.and.saucer"),
-                                           ("Disfraces", "theatermasks"), ("Cumpleaños", "gift"), ("No molestar", "moon"), ("Atajos", "keyboard")]
+                                           ("Aspecto", "theatermasks"), ("Cumpleaños", "gift"), ("No molestar", "moon"), ("Atajos", "keyboard")]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -441,10 +454,22 @@ struct CostumeTab: View {
     var body: some View {
         Form {
             Section {
-                Picker("Disfraz", selection: $store.c.disfraz) {
-                    Text("Automático (según el proyecto)").tag("auto")
-                    Divider()
-                    ForEach(costumeNames, id: \.1) { Text($0.0).tag($0.1) }
+                Toggle("Pack Bajovelo (boina, vino y cava al desplegar)", isOn: Binding(
+                    get: { store.c.packBajovelo },
+                    set: { on in
+                        store.c.packBajovelo = on
+                        if on && store.c.disfraces.isEmpty { store.c.disfraces = Config.reglasDeSerie }
+                    }))
+            } footer: {
+                Hint("Disfraces según el subproyecto: boina granate y, en la mano, una copa, un cuaderno, una guía, un cartel o un móvil. Los deploys se celebran descorchando cava.")
+            }
+            if store.c.packBajovelo {
+                Section {
+                    Picker("Disfraz", selection: $store.c.disfraz) {
+                        Text("Automático (según el proyecto)").tag("auto")
+                        Divider()
+                        ForEach(costumeNames, id: \.1) { Text($0.0).tag($0.1) }
+                    }
                 }
             }
             Section {
@@ -468,21 +493,23 @@ struct CostumeTab: View {
             } footer: {
                 Hint("Todas son Carita, en naranja. Igual que los disfraces: gana la primera regla con alguna palabra de la carpeta; en el archivo .carita también puedes poner una forma (p. ej., «blog alubia»).")
             }
-            Section {
-                ForEach(Array(store.c.disfraces.enumerated()), id: \.element.id) { i, rule in
-                    CostumeRow(store: store, index: i)
-                }
-                HStack {
-                    Button { store.c.disfraces.append(CostumeRule(palabras: [], disfraz: "vino")) } label: {
-                        Label("Añadir regla", systemImage: "plus")
+            if store.c.packBajovelo {
+                Section {
+                    ForEach(Array(store.c.disfraces.enumerated()), id: \.element.id) { i, rule in
+                        CostumeRow(store: store, index: i)
                     }
-                    Spacer()
-                    Button("Valores de serie") { store.c.disfraces = Config.reglasDeSerie }
+                    HStack {
+                        Button { store.c.disfraces.append(CostumeRule(palabras: [], disfraz: "vino")) } label: {
+                            Label("Añadir regla", systemImage: "plus")
+                        }
+                        Spacer()
+                        Button("Valores de serie") { store.c.disfraces = Config.reglasDeSerie }
+                    }
+                } header: {
+                    Text("Palabras en la ruta del proyecto")
+                } footer: {
+                    Hint("En automático gana la primera regla con alguna palabra que aparezca en la carpeta. Un archivo .carita en la raíz del proyecto manda sobre todo.")
                 }
-            } header: {
-                Text("Palabras en la ruta del proyecto")
-            } footer: {
-                Hint("En automático gana la primera regla con alguna palabra que aparezca en la carpeta. Un archivo .carita en la raíz del proyecto manda sobre todo.")
             }
         }
         .formStyle(.grouped)

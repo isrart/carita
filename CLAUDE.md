@@ -38,7 +38,8 @@ Carita.app ── lee esos archivos ──▶ un bicho (Creature: panel + WKWebV
 ### Formas (`~/.carita/shape`, `forma` en `<id>.info`)
 `redondita, alubia, gotita, mandarina, pelusita`: variaciones de Carita, todas naranjas. Las elige `pick_shape()` en `carita.py` (reglas `formas` de `config.json`, o `SHAPE_RULES`; una forma en `.carita` manda). En `face.html`, `data-shape` cambia el cuerpo, lo de arriba (`.hw`: hoja, flor, brote, gorros, que suben o bajan con la cabeza) y la cara de serie (ojos abiertos y sonrisa); las demás expresiones son comunes.
 
-### Disfraces (`~/.carita/costume`)
+### Disfraces (`~/.carita/costume`): pack Bajovelo
+Carita es para cualquiera; lo de Bajovelo (boina, vino, cava, frases `…Vino`) es un **pack opcional** (`packBajovelo` en `config.json`; a quien ya tenía `disfraces` se le activa solo al migrar). Sin el pack, `pick_costume()` devuelve siempre `none`.
 `none, vino, vinoblog, vinorecursos, vinotrivia, vinoreels`. Los elige `pick_costume()` en `carita.py` por palabras en la ruta (reglas `disfraces` de `config.json`, o `RULES` de serie); un archivo `.carita` en la raíz del proyecto lo fuerza. En `face.html`, `data-costume` y `data-cbase="vino"` (boina siempre en Bajovelo).
 
 ## Reglas que no se pueden romper

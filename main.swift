@@ -1459,7 +1459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             for k in creatures where k.seated || k.goingToSofa { k.leaveSofa(returning: true) }
             for k in creatures { k.applyScale() }
         }
-        if c.disfraz != old.disfraz || c.forma != old.forma { for k in creatures { k.applyCostume() } }
+        if c.disfraz != old.disfraz || c.forma != old.forma || c.packBajovelo != old.packBajovelo { for k in creatures { k.applyCostume() } }
         if c.oculta != old.oculta || c.noMolestarCamara != old.noMolestarCamara || c.noMolestarPantalla != old.noMolestarPantalla {
             if away != wasAway { applyVisibility() }
         }

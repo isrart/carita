@@ -153,9 +153,9 @@ def project_root(cwd):
     return os.path.abspath(cwd)
 
 
-# Disfraces por tipo de proyecto (todo es Bajovelo): boina siempre, y en la mano
-# algo distinto según el subproyecto. Palabras clave en la ruta de la carpeta, en orden:
-# la primera regla que encaja gana. Se pueden cambiar en Ajustes (~/.carita/config.json).
+# Pack Bajovelo (solo si está activado en Ajustes): boina siempre y, en la mano, algo distinto
+# según el subproyecto. Palabras clave en la ruta de la carpeta, en orden: la primera regla que
+# encaja gana. Se pueden cambiar en Ajustes (~/.carita/config.json).
 RULES = [
     ("vinotrivia", ("trivia", "quiz", "preguntas", "denominacion")),
     ("vinoreels", ("reel", "insta", "video", "redes", "social")),
@@ -172,8 +172,16 @@ SHAPE_RULES = [
     ("mandarina", ("blog", "reel", "insta", "video", "redes", "social", "articulo")),
     ("alubia", ("app", "api", "swift", "ios", "web", "carita", "code", "dev", "backend", "frontend")),
     ("gotita", ("notas", "apuntes", "scratch", "prueba", "test", "tmp", "sandbox")),
-    ("redondita", ("bajovelo", "vino")),
 ]
+
+
+def bajovelo_pack():
+    """¿Está activado el pack Bajovelo (disfraces de vino)?"""
+    try:
+        with open(os.path.join(DIR, "config.json"), encoding="utf-8") as f:
+            return bool(json.load(f).get("packBajovelo"))
+    except Exception:
+        return False
 
 
 def rules_from_config(key, field, default):
@@ -219,6 +227,8 @@ SHORT = {"blog": "vinoblog", "recursos": "vinorecursos", "trivia": "vinotrivia",
 
 
 def pick_costume(cwd):
+    if not bajovelo_pack():
+        return "none"   # los disfraces son del pack Bajovelo
     root = project_root(cwd)
     override = os.path.join(root, ".carita")
     if os.path.isfile(override):
