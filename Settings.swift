@@ -54,6 +54,7 @@ struct Config: Codable, Equatable {
     var atajoMostrar = Shortcut.toggleDefault.array   // [] = sin atajo
     var atajoCallar = Shortcut.muteDefault.array
     var atajoHablar = Shortcut.talkDefault.array
+    var enviarAlHablar = false   // al soltar el atajo de hablar, pulsar Intro también
     var cumples: [Cumple] = []
     var cumpleCantado = ""      // «2027-03-12 Lucía»: para cantar solo una vez al día
     var buscarActualizaciones = true   // una vez al día, en silencio
@@ -83,6 +84,7 @@ struct Config: Codable, Equatable {
         case forma, formas
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
+        case enviarAlHablar
         case atajoMostrar, atajoCallar, atajoHablar, cumples, cumpleCantado, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
     }
 
@@ -113,6 +115,7 @@ struct Config: Codable, Equatable {
         atajoMostrar = v(.atajoMostrar, d.atajoMostrar)
         atajoCallar = v(.atajoCallar, d.atajoCallar)
         atajoHablar = v(.atajoHablar, d.atajoHablar)
+        enviarAlHablar = v(.enviarAlHablar, d.enviarAlHablar)
         oculta = v(.oculta, d.oculta)
         buscarActualizaciones = v(.buscarActualizaciones, d.buscarActualizaciones)
         cumples = v(.cumples, d.cumples)
@@ -364,6 +367,13 @@ struct VoiceTab: View {
             Section {
                 Toggle("Leer mis respuestas en voz alta", isOn: $store.c.leerRespuestas)
                 Toggle("Avisos con voz (¡Hecho!, te necesito…)", isOn: $store.c.avisosVoz)
+            }
+            Section {
+                Toggle("Enviar directamente al soltar (pulsa Intro por ti)", isOn: $store.c.enviarAlHablar)
+            } header: {
+                Text("Cuando le hablas")
+            } footer: {
+                Hint("Desactivado, deja el texto escrito en la terminal para que lo revises y lo envíes tú.")
             }
             Section {
                 Picker("Voz", selection: $store.c.voz) {

@@ -132,11 +132,14 @@ final class Listener: NSObject {
 final class Typist: NSObject {
     var onMessage: ((String) -> Void)?
     private var pending = ""
+    private var send = false
     private var savedClipboard: String?
 
     /// `term`: app de la terminal (bundle id); `tty`: la pestaña (p. ej., «ttys002»), si se sabe.
-    func type(_ text: String, term: String?, tty: String) {
+    /// `send`: pulsar Intro después de pegar.
+    func type(_ text: String, term: String?, tty: String, send: Bool) {
         pending = text
+        self.send = send
         bringToFront(term: term, tty: tty)
         // un momento para que la ventana llegue al frente antes de pegar
         Timer.scheduledTimer(timeInterval: 0.4, target: self, selector: #selector(paste), userInfo: nil, repeats: false)
@@ -188,8 +191,20 @@ final class Typist: NSObject {
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
         up?.post(tap: .cghidEventTap)
-        onMessage?("Escrito. Revísalo y dale a Intro")
+        if send {
+            // un respiro para que la terminal reciba el pegado antes del Intro
+            Timer.scheduledTimer(timeInterval: 0.25, target: self, selector: #selector(pressReturn), userInfo: nil, repeats: false)
+            onMessage?("¡Enviado!")
+        } else {
+            onMessage?("Escrito. Revísalo y dale a Intro")
+        }
         Timer.scheduledTimer(timeInterval: 1, target: self, selector: #selector(restoreClipboard), userInfo: nil, repeats: false)
+    }
+
+    @objc private func pressReturn() {
+        let src = CGEventSource(stateID: .combinedSessionState)
+        CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Return), keyDown: true)?.post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: src, virtualKey: CGKeyCode(kVK_Return), keyDown: false)?.post(tap: .cghidEventTap)
     }
 
     /// Te devuelve lo que tenías copiado antes.

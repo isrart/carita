@@ -96,7 +96,7 @@ Se configura en el menú → «No molestar automático», donde también ves qu�
 
 ## Háblale
 
-**Mantén pulsado `⌃⌥⌘Espacio`** mientras hablas, como un walkie-talkie. El bicho de la sesión que estuvo activa la última se lleva la mano a la oreja y va escribiendo en su bocadillo lo que entiende. Al soltar, trae al frente la terminal de esa sesión y **deja el texto escrito, sin pulsar Intro**: lo revisas y lo envías tú.
+**Mantén pulsado `⌃⌥⌘Espacio`** mientras hablas, como un walkie-talkie. El bicho de la sesión que estuvo activa la última se lleva la mano a la oreja y va escribiendo en su bocadillo lo que entiende. Al soltar, trae al frente la terminal de esa sesión y **deja el texto escrito, sin pulsar Intro**: lo revisas y lo envías tú. Si prefieres que lo envíe directamente, activa Ajustes → Voz → «Enviar directamente al soltar».
 
 - El reconocimiento es en español de España y **en tu Mac, sin internet**.
 - La primera vez pide permiso para el **micrófono** y el **reconocimiento de voz**. Para que escriba ella en la terminal necesita además **Accesibilidad** (Ajustes del Sistema → Privacidad y seguridad → Accesibilidad → Carita). Sin ese permiso, te deja el texto copiado y te dice que lo pegues con `⌘V`.

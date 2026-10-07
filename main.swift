@@ -1087,7 +1087,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         debugLog("\(c.name): oído «\(text)»")
         c.showBubble(text, force: true)
         typedTo = c
-        typist.type(text, term: termBundle(for: c), tty: c.info.tty)
+        typist.type(text, term: termBundle(for: c), tty: c.info.tty, send: cfg.enviarAlHablar)
     }
 
     func listenProblem(_ text: String) {
