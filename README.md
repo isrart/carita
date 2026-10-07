@@ -68,6 +68,20 @@ Cuando termino de responder, Carita te dice en voz alta la idea general (las pri
 
 ## Instalar
 
+### Ya compilada (lo más fácil)
+
+1. Descarga **Carita.zip** de la [última Release](https://github.com/isrart/carita/releases/latest), descomprímelo y mueve **Carita.app** a `~/Applications` (o a Aplicaciones).
+2. **La primera vez, clic derecho → Abrir → Abrir.** La app solo lleva firma *ad hoc* (no hay cuenta de desarrollador de Apple), así que Gatekeeper avisa de que no puede comprobarla. Si ni así te deja, quítale la cuarentena:
+   ```bash
+   xattr -dr com.apple.quarantine ~/Applications/Carita.app
+   ```
+3. Menú del bichito → **Diagnóstico… → Reinstalar hooks**. Copia los scripts a `~/.carita` y conecta los hooks de Claude Code (sin tocar lo demás de tu `settings.json`).
+4. Abre una sesión **nueva** de Claude Code.
+
+Necesitas `python3` (viene con las Command Line Tools: `xcode-select --install`).
+
+### Desde el código
+
 Necesitas macOS 13 o superior y las Command Line Tools (`xcode-select --install` si no las tienes).
 
 ```bash

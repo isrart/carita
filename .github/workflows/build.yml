@@ -12,24 +12,61 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-14
+    # macOS 15 trae Xcode 16 (Swift 6, SDK con Swift Charts y SwiftUI de macOS 13+);
+    # build.sh compila en modo -swift-version 5
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # build.sh usa el número de commits como número de build
+          fetch-depth: 0   # build.sh usa el número de commits como número de build; el changelog, las etiquetas
+
+      - name: Elegir Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)"
+          swiftc --version
+
+      - name: Comprobar que la etiqueta coincide con VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if [ "${GITHUB_REF_NAME#v}" != "$v" ]; then
+            echo "::error::La etiqueta $GITHUB_REF_NAME no coincide con VERSION ($v)"
+            exit 1
+          fi
 
       - name: Compilar Carita.app
         run: bash build.sh
 
       - name: Empaquetar
+        # ditto conserva la firma (ad hoc) y los atributos; zip a secas la rompería
         run: |
           cd build
-          ditto -c -k --keepParent Carita.app Carita.zip
+          ditto -c -k --sequesterRsrc --keepParent Carita.app Carita.zip
+          codesign --verify --deep --strict Carita.app && echo "firma OK"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Carita
           path: build/Carita.zip
+
+      - name: Changelog
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          prev="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          range="${prev:+$prev..}$GITHUB_REF_NAME"
+          {
+            echo "## Novedades"
+            echo
+            git log --no-merges --format='- %s' "$range"
+            echo
+            echo "## Instalar"
+            echo
+            echo "1. Descarga **Carita.zip**, descomprímelo y mueve **Carita.app** a tu carpeta Aplicaciones (o ~/Applications)."
+            echo "2. La primera vez, **clic derecho → Abrir** (no está firmada por Apple). Si macOS no te deja, ejecuta:"
+            echo '   `xattr -dr com.apple.quarantine ~/Applications/Carita.app`'
+            echo "3. Menú del bichito → **Diagnóstico… → Reinstalar hooks** para conectarla con Claude Code."
+          } > notes.md
+          cat notes.md
 
       - name: Publicar release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -37,4 +74,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" build/Carita.zip \
-            --title "Carita ${GITHUB_REF_NAME#v}" --generate-notes
+            --title "Carita ${GITHUB_REF_NAME#v}" --notes-file notes.md
