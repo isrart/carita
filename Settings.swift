@@ -214,7 +214,7 @@ final class SettingsWindow {
 
     func show(store: ConfigStore, actions: SettingsActions) {
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
+            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 560),
                              styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
             w.title = "Ajustes de Carita"
             w.isReleasedWhenClosed = false
@@ -240,17 +240,44 @@ let costumeNames: [(String, String)] = [
 struct SettingsView: View {
     @ObservedObject var store: ConfigStore
     let actions: SettingsActions
+    @State private var tab = 0
+
+    // con TabView, en ventanas estrechas macOS esconde las pestañas tras un «»»: barra propia, siempre visible
+    static let tabs: [(String, String)] = [("General", "gearshape"), ("Voz", "speaker.wave.2"), ("Descanso", "cup.and.saucer"),
+                                           ("Disfraces", "theatermasks"), ("No molestar", "moon"), ("Atajos", "keyboard")]
 
     var body: some View {
-        TabView {
-            GeneralTab(store: store, actions: actions).tabItem { Label("General", systemImage: "gearshape") }
-            VoiceTab(store: store, actions: actions).tabItem { Label("Voz", systemImage: "speaker.wave.2") }
-            BreakTab(store: store).tabItem { Label("Descanso", systemImage: "cup.and.saucer") }
-            CostumeTab(store: store).tabItem { Label("Disfraces", systemImage: "theatermasks") }
-            DndTab(store: store, actions: actions).tabItem { Label("No molestar", systemImage: "moon") }
-            ShortcutTab(store: store, actions: actions).tabItem { Label("Atajos", systemImage: "keyboard") }
+        VStack(spacing: 0) {
+            HStack(spacing: 2) {
+                ForEach(Array(SettingsView.tabs.enumerated()), id: \.offset) { i, t in
+                    Button { tab = i } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: t.1).font(.system(size: 17))
+                            Text(t.0).font(.caption)
+                        }
+                        .frame(width: 88, height: 46)
+                        .foregroundColor(tab == i ? .accentColor : .secondary)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(tab == i ? Color.accentColor.opacity(0.12) : .clear))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 8)
+            Divider()
+            Group {
+                switch tab {
+                case 1: VoiceTab(store: store, actions: actions)
+                case 2: BreakTab(store: store)
+                case 3: CostumeTab(store: store)
+                case 4: DndTab(store: store, actions: actions)
+                case 5: ShortcutTab(store: store, actions: actions)
+                default: GeneralTab(store: store, actions: actions)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 600, height: 500)
+        .frame(width: 600, height: 560)
     }
 }
 
