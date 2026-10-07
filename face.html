@@ -775,9 +775,11 @@ html.app .bubble{display:none}
       const now = Date.now(), active = now - lastActivity < 120e3;
       if (active && !breakAskedAt && now - workStart >= BREAK_AFTER && cur !== "asking") {
         breakAskedAt = now;
+        host.postMessage({type: "event", text: "stretch"});   // para las estadísticas
         apply("stretch", false, pick("stretch", duration(now - workStart)));
       } else if (active && breakAskedAt && !masked && now - breakAskedAt >= MASK_AFTER) {
         setMasked(true);
+        host.postMessage({type: "event", text: "mask"});
         const line = pick("mask"); say(line); speakLine(line);
       }
     }, 10000);

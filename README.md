@@ -95,6 +95,17 @@ Abre una sesión **nueva** de Claude Code para que coja los hooks.
 - **Atajos de teclado** (funcionan con cualquier app delante): `⌃⌥⌘C` la esconde o la muestra; `⌃⌥⌘M` la calla al momento y la silencia una hora (otra vez, la reactiva). Si chocan con un atajo del Mac, te avisa en el bocadillo.
 - **Abrirla**: Spotlight (`Cmd + Espacio` → «Carita») o `open ~/Applications/Carita.app`.
 
+## Estadísticas
+
+Menú → **Estadísticas…**, esta semana o este mes:
+
+- **Horas por proyecto** (en color, los de Bajovelo). Cuenta cada pregunta a Claude Code hasta su respuesta, más los ratos seguidos sin pausas de más de 5 minutos.
+- **Tareas terminadas** por día.
+- **Deploys**: los que llegaron a producción y los que fallaron.
+- **Descansos**: cuántas veces te pidió estirarte y cuántas lo ignoraste.
+
+Se apuntan en `~/.carita/historial.jsonl` (una línea por evento). Cuando pasa de 2 MB, lo de hace más de 60 días se resume por días en `historial-resumen.json`. Todo se queda en tu Mac.
+
 ## ¿No reacciona?
 
 Menú → **Diagnóstico…** enseña con semáforos lo que puede fallar: cuándo llegó el último aviso de Claude Code, si los hooks están en `~/.claude/settings.json`, si `hook.sh` y `python3` están bien, si los scripts son de la misma versión que la app, qué terminal ha detectado y qué voz usa.

@@ -482,6 +482,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     let store = ConfigStore()
     let settingsWindow = SettingsWindow()
     let diagnosticsWindow = DiagnosticsWindow()
+    let statsWindow = StatsWindow()
     var lastArrival: (state: String, at: Date)?
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
     var cfg: Config { store.c }
@@ -540,6 +541,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     func applicationDidFinishLaunching(_ notification: Notification) {
         try? FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
         updateScriptsIfNeeded()
+        History.rotateIfNeeded()
 
         let size = NSSize(width: baseSize.width * scale, height: baseSize.height * scale)
         let screen = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -706,6 +708,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if away { js("carita.hidden(true)") }
         sendFaceConfig()
         if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
+        if ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] != nil {
+            openSettings()
+            openDiagnostics()
+            openStats()
+            Timer.scheduledTimer(timeInterval: 2, target: self, selector: #selector(takeSnapshots), userInfo: nil, repeats: false)
+        }
         checkFiles()
         mouseMoved()
     }
@@ -717,6 +725,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         switch type {
         case "bubble":
             showBubble(text)
+        case "event":
+            if ["stretch", "mask"].contains(text) { History.append(text) }   // descansos, para las estadísticas
         case "sound":
             NSSound(named: NSSound.Name(text))?.play()   // "Pop": el tapón del cava
         case "say":
@@ -731,6 +741,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         guard pageReady else { return }
         debugLog(code)
         web.evaluateJavaScript(code, completionHandler: nil)
+    }
+
+    /// Para pruebas: `open --env CARITA_SNAPSHOT=/carpeta build/Carita.app` abre las ventanas
+    /// (ajustes, diagnóstico, estadísticas) y las guarda como PNG en esa carpeta.
+    @objc func takeSnapshots() {
+        guard let dir = ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] else { return }
+        // solo las ventanas normales (ni el bicho ni el icono de la barra de menús)
+        for w in NSApp.windows where w.isVisible && w.styleMask.contains(.titled) {
+            guard let view = w.contentView?.superview ?? w.contentView,
+                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            let name = w.title.replacingOccurrences(of: " ", with: "-")
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: dir).appendingPathComponent(name + ".png"))
+            w.close()
+        }
+        debugLog("capturas guardadas en \(dir)")
     }
 
     /// Para pruebas: `open --env CARITA_LOG=/ruta/log build/Carita.app` apunta cada llamada a la cara.
@@ -1082,6 +1108,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        let stats = NSMenuItem(title: "Estadísticas…", action: #selector(openStats), keyEquivalent: "")
+        stats.target = self
+        menu.addItem(stats)
         let diagnostics = NSMenuItem(title: "Diagnóstico…", action: #selector(openDiagnostics), keyEquivalent: "")
         diagnostics.target = self
         menu.addItem(diagnostics)
@@ -1210,6 +1239,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let ok = Scripts.copyToHome()
         debugLog("scripts de ~/.carita: \(old) → \(appVersion) \(ok ? "actualizados" : "ERROR")")
     }
+
+    @objc func openStats() { statsWindow.show() }
 
     @objc func openDiagnostics() {
         diagnosticsWindow.show(info: DiagnosticsInfo(

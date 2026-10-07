@@ -5,6 +5,9 @@
   bashpre        -> ¿es un deploy? ("deploying") si no, "running"
   bashpost       -> ¿el deploy salió bien? ("shipped") si no, "thinking"
 
+En prompt, done y deploys apunta además una línea en ~/.carita/historial.jsonl
+(para las estadísticas de la app; nada sale del Mac).
+
 Imprime solo el estado final (hook.sh lo recoge); nunca falla.
 """
 import json
@@ -212,6 +215,18 @@ def write(name, content):
     os.replace(tmp, path)
 
 
+def log_event(ev, cwd):
+    """Una línea en el historial: {"t", "ev", "proyecto", "disfraz"}. Append de una línea, rápido."""
+    if not cwd:
+        return
+    line = json.dumps({"t": round(time.time(), 1), "ev": ev,
+                       "proyecto": os.path.basename(project_root(cwd)) or "?",
+                       "disfraz": pick_costume(cwd)}, ensure_ascii=False)
+    os.makedirs(DIR, exist_ok=True)
+    with open(os.path.join(DIR, "historial.jsonl"), "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
 def summary(data):
     text = data.get("last_assistant_message") or ""
     path = data.get("transcript_path")
@@ -241,19 +256,29 @@ def main():
     fallback = {"hello": "hello", "prompt": "thinking", "done": "done",
                 "bashpre": "running", "bashpost": "thinking"}.get(event, "")
     state = fallback
+    cwd = data.get("cwd")
     try:
-        if event in ("hello", "prompt") and data.get("cwd"):
-            write("costume", pick_costume(data["cwd"]))
+        if event in ("hello", "prompt") and cwd:
+            write("costume", pick_costume(cwd))
         elif event == "done":
             summary(data)
         elif event == "bashpre":
             if is_deploy((data.get("tool_input") or {}).get("command", "")):
                 state = "deploying"
         elif event == "bashpost":
-            if is_deploy((data.get("tool_input") or {}).get("command", "")) and deploy_ok(data.get("tool_response")):
-                state = "shipped"
+            if is_deploy((data.get("tool_input") or {}).get("command", "")):
+                if deploy_ok(data.get("tool_response")):
+                    state = "shipped"
+                    log_event("shipped", cwd)
+                else:
+                    log_event("deploy_fallido", cwd)
     except Exception:
         state = fallback
+    try:
+        if event in ("prompt", "done"):
+            log_event(event, cwd)
+    except Exception:
+        pass
     sys.stdout.write(state)
 
 
