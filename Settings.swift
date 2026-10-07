@@ -16,6 +16,15 @@ struct CostumeRule: Codable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey { case palabras, disfraz }
 }
 
+/// Un cumpleaños: ese día llevan gorro de fiesta y el primer bicho le canta.
+struct Cumple: Codable, Hashable, Identifiable {
+    var id = UUID()
+    var nombre: String
+    var dia: Int
+    var mes: Int
+    enum CodingKeys: String, CodingKey { case nombre, dia, mes }
+}
+
 struct Config: Codable, Equatable {
     var nombre = "Isra"
     var tamano: Double = 1
@@ -35,6 +44,8 @@ struct Config: Codable, Equatable {
     var atajoMostrar = Shortcut.toggleDefault.array   // [] = sin atajo
     var atajoCallar = Shortcut.muteDefault.array
     var atajoHablar = Shortcut.talkDefault.array
+    var cumples: [Cumple] = []
+    var cumpleCantado = ""      // «2027-03-12 Lucía»: para cantar solo una vez al día
     var buscarActualizaciones = true   // una vez al día, en silencio
     var ultimaComprobacion: Double?
     var oculta = false
@@ -52,7 +63,7 @@ struct Config: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
-        case atajoMostrar, atajoCallar, atajoHablar, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
+        case atajoMostrar, atajoCallar, atajoHablar, cumples, cumpleCantado, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
     }
 
     init() {}
@@ -82,6 +93,8 @@ struct Config: Codable, Equatable {
         atajoHablar = v(.atajoHablar, d.atajoHablar)
         oculta = v(.oculta, d.oculta)
         buscarActualizaciones = v(.buscarActualizaciones, d.buscarActualizaciones)
+        cumples = v(.cumples, d.cumples)
+        cumpleCantado = v(.cumpleCantado, d.cumpleCantado)
         ultimaComprobacion = try? c.decode(Double.self, forKey: .ultimaComprobacion)
         silenciadaHasta = try? c.decode(Double.self, forKey: .silenciadaHasta)
     }
@@ -253,6 +266,26 @@ struct GeneralTab: View {
             Section {
                 ValueSlider(title: "Tamaño", value: $store.c.tamano, range: 0.6...1.6, step: 0.05) { "\(Int(($0 * 100).rounded())) %" }
                 Toggle("Ir a buscarme cuando me necesita", isOn: $store.c.irABuscarte)
+            }
+            Section {
+                ForEach($store.c.cumples) { $c in
+                    HStack {
+                        TextField("", text: $c.nombre, prompt: Text("Nombre")).labelsHidden()
+                        Picker("", selection: $c.dia) { ForEach(1...31, id: \.self) { Text("\($0)").tag($0) } }
+                            .labelsHidden().frame(width: 64)
+                        Picker("", selection: $c.mes) {
+                            ForEach(1...12, id: \.self) { m in Text(Calendar(identifier: .gregorian).monthSymbols(es: m)).tag(m) }
+                        }
+                        .labelsHidden().frame(width: 120)
+                        Button { store.c.cumples.removeAll { $0.id == c.id } } label: { Image(systemName: "trash") }
+                            .buttonStyle(.borderless)
+                    }
+                }
+                Button { store.c.cumples.append(Cumple(nombre: "", dia: 1, mes: 1)) } label: { Label("Añadir cumpleaños", systemImage: "plus") }
+            } header: {
+                Text("Cumpleaños")
+            } footer: {
+                Hint("Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).")
             }
             Section {
                 LabeledContent("Lo que dice") {
@@ -537,5 +570,14 @@ struct ShortcutRecorder: View {
         monitor = nil
         if recording { actions.pauseHotKeys(false) }
         recording = false
+    }
+}
+
+extension Calendar {
+    /// «enero», «febrero»… en español.
+    func monthSymbols(es m: Int) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_ES")
+        return f.standaloneMonthSymbols[m - 1]
     }
 }

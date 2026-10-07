@@ -273,6 +273,22 @@ html.app .bubble{display:none}
 #c.peek .brow{opacity:1;transform:translateY(-4px) rotate(-6deg)}
 #c.peek .shadow{opacity:0}
 
+/* ---------- special days and hours ---------- */
+.hat,.ghost,.coffee,.snow{opacity:0;transition:opacity .3s}
+#c[data-hat="party"] .hat-party,#c[data-hat="santa"] .hat-santa,#c[data-hat="crown"] .hat-crown,
+#c[data-hat="nightcap"] .hat-nightcap,#c[data-ghost="1"] .ghost,#c[data-coffee="1"] .coffee,#c[data-snow="1"] .snow{opacity:1}
+/* a special hat replaces the Bajovelo beret; with the coffee the right hand is busy */
+#c:not([data-hat="none"]) .cos-hat{opacity:0!important}
+#c[data-coffee="1"] .arm-r{transform:rotate(-28deg)}
+#c[data-hat="nightcap"] .nc-tip{animation:droop 3.4s ease-in-out infinite}
+@keyframes droop{50%{transform:rotate(6deg)}}
+.steam path{animation:steam 2.2s ease-in-out infinite;opacity:0}
+.steam path:nth-child(2){animation-delay:1.1s}
+@keyframes steam{0%{opacity:0;transform:translateY(4px)}30%{opacity:.8}100%{opacity:0;transform:translateY(-10px)}}
+#c[data-snow="1"] .snow circle{animation:snowfall 6s linear infinite}
+@keyframes snowfall{from{transform:translateY(-40px)}to{transform:translateY(240px)}}
+#c[data-ghost="1"] .blush{opacity:.15}
+
 /* seated on the sofa (several creatures resting): no feet or shadow, the cushion covers them */
 #c.seated .foot,#c.seated .shadow{opacity:0}
 #c.seated .all{transform:translateY(6px)}
@@ -428,6 +444,9 @@ html.app .bubble{display:none}
             <circle class="rec" cx="15.5" cy="124" r="2.4" fill="#FF3B30"/>
           </g>
 
+          <!-- Halloween: sheet with the eyes peeping out (eyes are drawn after it) -->
+          <path class="ghost" d="M34 132 Q34 48 100 46 Q166 48 166 132 L166 178 q-11 10 -22 0 t-22 0 t-22 0 t-22 0 t-22 0 t-22 0 Z" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+
           <!-- cheeks -->
           <ellipse class="blush" cx="62" cy="132" rx="10" ry="5.5" fill="var(--cheek)"/>
           <ellipse class="blush" cx="138" cy="132" rx="10" ry="5.5" fill="var(--cheek)"/>
@@ -518,6 +537,43 @@ html.app .bubble{display:none}
             </g>
           </g>
 
+          <!-- special hats -->
+          <g class="hat hat-party" transform="rotate(-10 104 46)">
+            <path d="M84 66 L104 18 L124 66 Z" fill="#FF8FA3" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M92 48 L114 52 M88 58 L120 62 M98 34 L110 36" stroke="#F5C242" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="104" cy="17" r="6" fill="#F5C242" stroke="var(--ink)" stroke-width="2.2"/>
+          </g>
+          <g class="hat hat-santa">
+            <path d="M66 66 Q72 26 108 24 Q140 24 156 58 L146 64 Q134 44 124 44 Q132 54 134 66 Z" fill="#E23B3B" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+            <rect x="60" y="58" width="80" height="14" rx="7" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+            <circle cx="152" cy="64" r="8" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+          </g>
+          <g class="hat hat-crown">
+            <path d="M72 70 L70 38 L86 52 L100 30 L114 52 L130 38 L128 70 Z" fill="#F5C242" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="100" cy="58" r="4.5" fill="#E23B3B" stroke="var(--ink)" stroke-width="1.6"/>
+            <circle cx="84" cy="62" r="3.2" fill="#6FA8FF" stroke="var(--ink)" stroke-width="1.4"/>
+            <circle cx="116" cy="62" r="3.2" fill="#5DB36A" stroke="var(--ink)" stroke-width="1.4"/>
+          </g>
+          <g class="hat hat-nightcap">
+            <g class="nc-tip" style="transform-box:view-box;transform-origin:130px 50px">
+              <path d="M68 66 Q70 30 104 28 Q138 30 150 62 Q156 80 166 84 L160 92 Q146 84 138 66 Z" fill="#6FA8FF" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M84 36 L80 64 M104 30 L104 64 M124 36 L128 62 M144 56 L150 74" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/>
+              <circle cx="164" cy="90" r="7" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.2"/>
+            </g>
+            <rect x="62" y="58" width="76" height="12" rx="6" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+          </g>
+
+          <!-- coffee in the morning -->
+          <g class="coffee">
+            <g class="steam" fill="none" stroke="#A9A9A9" stroke-width="2.2" stroke-linecap="round">
+              <path d="M162 124 q-4 -6 0 -12 t0 -12"/><path d="M172 124 q-4 -6 0 -12 t0 -12"/>
+            </g>
+            <path d="M178 136 q10 0 10 9 q0 9 -10 9" fill="none" stroke="var(--ink)" stroke-width="3"/>
+            <rect x="154" y="130" width="26" height="28" rx="5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="2.5"/>
+            <ellipse cx="167" cy="132" rx="11" ry="3" fill="#6B4226"/>
+            <path d="M158 146 q9 4 18 0" stroke="#E27A52" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          </g>
+
           <!-- sweat (running) -->
           <path class="prop sweat" d="M156 76 Q149 88 156 92 Q163 88 156 76 Z" fill="#8FD3FF" stroke="var(--ink)" stroke-width="1.8"/>
         </g>
@@ -550,6 +606,15 @@ html.app .bubble{display:none}
         <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF5A4E" style="--dx:52px;--dy:-104px;--r:240deg"/>
         <rect x="97" y="80" width="6" height="10" rx="1.5" fill="#FF8FA3" style="--dx:-20px;--dy:-60px;--r:-120deg"/>
       </g>
+      <!-- Christmas snow -->
+      <g class="snow" fill="#FFFFFF" stroke="#C9D6E3" stroke-width="1">
+        <circle cx="0" cy="-10" r="3" style="animation-delay:0s"/><circle cx="30" cy="-30" r="2.2" style="animation-delay:-1.2s"/>
+        <circle cx="60" cy="-20" r="3.4" style="animation-delay:-3s"/><circle cx="92" cy="-36" r="2.4" style="animation-delay:-4.4s"/>
+        <circle cx="124" cy="-14" r="3" style="animation-delay:-2.1s"/><circle cx="150" cy="-28" r="2.2" style="animation-delay:-5.2s"/>
+        <circle cx="180" cy="-18" r="3.2" style="animation-delay:-0.7s"/><circle cx="206" cy="-34" r="2.6" style="animation-delay:-3.7s"/>
+        <circle cx="-10" cy="-40" r="2.4" style="animation-delay:-2.6s"/><circle cx="110" cy="-44" r="2" style="animation-delay:-5.8s"/>
+      </g>
+
       <!-- fireworks (filled by script) -->
       <g class="prop fireworks" id="fireworks"></g>
     </svg>
@@ -606,6 +671,14 @@ html.app .bubble{display:none}
     hideCount: ["¡Cuenta hasta diez! Que me escondo…", "¡Escondite! Cierra los ojos y cuenta…", "¡No mires, eh! Uno, dos, tres…"],
     hideHint: ["Jijiji…", "Frío, frío…", "¡Por aquí no estoy!", "Psst… caliente, caliente…"],
     hideWin: ["¡Aquí estaba! ¡Gané yo!", "¡Te rindes! Estaba aquí todo el rato"],
+    noche: ["¿Todavía despierto?", "Es tardísimo, {n}…", "Mañana más, ¿no?", "Yo ya tengo el pijama puesto"],
+    cafe: ["Primero el café, luego el código", "Buenos días, {n}. ¿Café?", "Sin café no compilo"],
+    navidad: ["¡Feliz Navidad, {n}!", "¿Has sido bueno este año?", "Jo, jo, jo… ¡commit, commit, commit!"],
+    nochevieja: ["¿Tienes las uvas preparadas?", "¡Último día del año! A por el próximo"],
+    reyes: ["¿Qué te han traído los Reyes?", "Yo les pedí más RAM"],
+    halloween: ["¡Buuuu!", "¿Truco o trato?", "Soy un fantasma muy temible"],
+    carnaval: ["¿Te gusta mi disfraz?", "¡Es Carnaval! ¿Adivinas quién soy?"],
+    cumple: ["¡Hoy es el cumple de {c}!", "¡Felicidades, {c}!", "¿Hay tarta para mí? Es el cumple de {c}"],
     idle: ["Aquí, esperando órdenes", "¿Otro cafecito?", "Tú tranquilo, yo vigilo", "La terminal te echa de menos"]
   };
 
@@ -672,7 +745,8 @@ html.app .bubble{display:none}
 
   const pick = (k, t) => {
     const a = FRASES[k] || [];
-    return (a[Math.floor(Math.random() * a.length)] || "").replaceAll("{n}", NOMBRE).replaceAll("{t}", t || "");
+    return (a[Math.floor(Math.random() * a.length)] || "").replaceAll("{n}", NOMBRE).replaceAll("{t}", t || "")
+      .replaceAll("{c}", special.cumple || "");
   };
   function duration(ms) {
     const min = Math.round(ms / 60e3), h = Math.floor(min / 60), m = min % 60;
@@ -882,10 +956,62 @@ html.app .bubble{display:none}
   }
   function setMasked(on) { masked = !!on; svg.classList.toggle("masked", masked); }
   const COSTUMES = ["vino", "vinoblog", "vinorecursos", "vinotrivia", "vinoreels"];
+  let baseCostume = "none";
   function costume(name) {
-    const c = COSTUMES.includes(name) ? name : "none";
+    baseCostume = COSTUMES.includes(name) ? name : "none";
+    renderCostume();
+  }
+  function renderCostume() {
+    const c = special.carnaval || baseCostume;
     svg.dataset.costume = c;
     svg.dataset.cbase = c.startsWith("vino") ? "vino" : "none";
+  }
+
+  // ---------- días y horas especiales ----------
+  let CUMPLES = [], fakeNow = null, special = {};
+  const now_ = () => fakeNow ? new Date(fakeNow) : new Date();
+  // Domingo de Resurrección (algoritmo de Meeus); el Carnaval va del jueves lardero al martes
+  function easter(y) {
+    const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4,
+      f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30,
+      i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+      month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(y, month - 1, day);
+  }
+  function updateSpecials() {
+    const d = now_(), m = d.getMonth() + 1, day = d.getDate(), hour = d.getHours() + d.getMinutes() / 60;
+    const sp = {};
+    const cumple = CUMPLES.find(c => +c.dia === day && +c.mes === m);
+    if (cumple) sp.cumple = cumple.nombre;
+    const e = easter(d.getFullYear()), dayMs = 864e5, today = new Date(d.getFullYear(), m - 1, day);
+    const fromEaster = Math.round((today - e) / dayMs);
+    if (m === 12 && day >= 22 && day <= 26) sp.season = "navidad";
+    else if (m === 12 && day === 31) sp.season = "nochevieja";
+    else if (m === 1 && (day === 5 || day === 6)) sp.season = "reyes";
+    else if (m === 10 && day === 31) sp.season = "halloween";
+    else if (fromEaster >= -52 && fromEaster <= -47) sp.season = "carnaval";
+    if (sp.season === "carnaval") {
+      const pool = ["vino", "vinoblog", "vinorecursos", "vinotrivia", "vinoreels", "none"];
+      sp.carnaval = pool[(d.getHours() * 7 + day) % pool.length];     // cambia cada hora
+      sp.carnavalHat = ["party", "crown", "santa", "none"][(d.getHours() + day) % 4];
+    }
+    sp.night = hour >= 22 || hour < 7;
+    sp.coffee = hour >= 7 && hour < 8.5;
+    special = sp;
+    const hat = sp.cumple || sp.season === "nochevieja" ? "party"
+      : sp.season === "navidad" ? "santa" : sp.season === "reyes" ? "crown"
+      : sp.season === "carnaval" && sp.carnavalHat !== "none" ? sp.carnavalHat
+      : sp.night ? "nightcap" : "none";
+    svg.dataset.hat = hat;
+    svg.dataset.ghost = sp.season === "halloween" ? "1" : "0";
+    svg.dataset.snow = sp.season === "navidad" ? "1" : "0";
+    svg.dataset.coffee = sp.coffee ? "1" : "0";
+    renderCostume();
+  }
+  // lo que dice cuando está sin hacer nada: a veces, algo del día
+  function idleLine() {
+    const k = special.cumple ? "cumple" : special.season || (special.night ? "noche" : special.coffee ? "cafe" : null);
+    return k && Math.random() < 0.6 ? pick(k) : pick("idle");
   }
   function travel(dir) {
     wake();
@@ -900,8 +1026,11 @@ html.app .bubble{display:none}
     if (c.maskAfter > 0) MASK_AFTER = c.maskAfter;
     if (c.breakGap > 0) BREAK_GAP = c.breakGap;
     if ("frases" in c) setFrases(c.frases);
+    if (Array.isArray(c.cumples)) { CUMPLES = c.cumples; updateSpecials(); }
   }
   window.carita = {set, poke, look, reply, talking, costume, travel, mask: setMasked, say: t => say(t), hidden: setHidden, config, listen, sit, dizzy, edge, hungry, peek, found, frase: k => pick(k),
+    // para pruebas: carita.fecha("2026-12-24T10:00") finge otra fecha (null vuelve a la de verdad)
+    fecha: iso => { fakeNow = iso; updateSpecials(); return special; },
     frasesDeSerie: () => FRASES_SERIE};
 
   // fireworks particles
@@ -935,9 +1064,10 @@ html.app .bubble{display:none}
       const idleFor = Date.now() - lastActivity;
       if (S[cur] && S[cur].work && idleFor > 180000) apply("idle", true);
       else if (cur === "asking" && idleFor > 600000) apply("idle", true);
-      else if (cur === "idle" && idleFor > 180000) apply("sleepy");
+      else if (cur === "idle" && idleFor > (special.night ? 60000 : 180000)) apply("sleepy");   // de noche, antes
       else if (cur === "sleepy" && idleFor > 720000) apply("sleeping", true);
-      else if (cur === "idle" && Math.random() < 0.06) say(pick("idle"));
+      else if (cur === "idle" && Math.random() < 0.06) say(idleLine());
+      updateSpecials();
       // break reminder
       const now = Date.now(), active = now - lastActivity < 120e3;
       if (active && !breakAskedAt && now - workStart >= BREAK_AFTER && cur !== "asking") {
@@ -951,6 +1081,7 @@ html.app .bubble{display:none}
       }
     }, 10000);
   }
+  updateSpecials();
   if (APP) {
     startLoop();
     apply("hello");

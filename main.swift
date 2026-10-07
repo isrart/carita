@@ -628,6 +628,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startedUp = true
         if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
         dailyUpdateCheck()
+        singBirthdayIfNeeded()
         if ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] != nil {
             openSettings()
             openDiagnostics()
@@ -883,9 +884,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Si hoy es el cumple de alguien y aún no se le ha cantado, el primer bicho le canta (estás delante:
+    /// se llama al llegar un aviso de Claude Code, al arrancar y al guardar los cumpleaños).
+    func singBirthdayIfNeeded() {
+        guard !quiet, let first = creatures.first(where: { !$0.leaving }), first.pageReady else { return }
+        let d = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        guard let who = cfg.cumples.first(where: { !$0.nombre.isEmpty && $0.dia == d.day && $0.mes == d.month }) else { return }
+        let key = String(format: "%04d-%02d-%02d %@", d.year ?? 0, d.month ?? 0, d.day ?? 0, who.nombre)
+        guard cfg.cumpleCantado != key else { return }
+        store.c.cumpleCantado = key
+        first.js("carita.found()")   // confeti
+        first.notice("🎂 ¡Feliz cumpleaños, \(who.nombre)!")
+        speak("Cumpleaños feliz, cumpleaños feliz, te deseamos, \(who.nombre), cumpleaños feliz. ¡Felicidades!",
+              interrupt: true, by: first)
+    }
+
     /// Un estado que llega para un bicho.
     func arrived(_ s: String, for c: Creature) {
         lastArrival = (s, Date())
+        singBirthdayIfNeeded()
         // si le preguntas otra cosa mientras habla, se calla
         if workStates.contains(s) && speech.isSpeaking && speaker === c { speech.stopSpeaking(at: .word) }
         c.set(s)
@@ -1464,6 +1481,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "maskAfter": cfg.antifazMinutos * 60_000,
             "breakGap": cfg.pausaMinutos * 60_000,
             "frases": loadPhrases(),
+            "cumples": cfg.cumples.filter { !$0.nombre.isEmpty }.map { ["nombre": $0.nombre, "dia": $0.dia, "mes": $0.mes] },
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: face),
               let json = String(data: data, encoding: .utf8) else { return }
@@ -1497,6 +1515,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 primary.js("carita.say('Vale, me callo')")
             }
         }
+        if c.cumples != old.cumples { sendFaceConfig(); singBirthdayIfNeeded() }
         if c.nombre != old.nombre || c.descansoMinutos != old.descansoMinutos
             || c.antifazMinutos != old.antifazMinutos || c.pausaMinutos != old.pausaMinutos { sendFaceConfig() }
         refreshMenu()

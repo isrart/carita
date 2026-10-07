@@ -28,6 +28,13 @@ Además: los ojos siguen al ratón, parpadea, y si le haces clic le das cosquill
 - **Hambre**: deja el puntero quieto encima un rato… y ¡ñam! (es broma).
 - **Escondite**: clic derecho → «Jugar al escondite». Cuenta, desaparece y se asoma por un borde de la pantalla; si lo pillas con un clic te dice cuánto has tardado. Si tardas mucho, da pistas, y a los dos minutos sale él: «¡Gané yo!».
 
+## Días y horas especiales
+
+- **Cumpleaños**: en Ajustes → General apuntas nombres y fechas. Ese día llevan gorro de fiesta y el primer bicho le canta «Cumpleaños feliz» con su nombre (una vez).
+- **Navidad** (22–26 de diciembre): gorro de Papá Noel y nieve. **Nochevieja**: gorro de fiesta. **Reyes** (5 y 6 de enero): corona. **Halloween**: de fantasma. **Carnaval**: un disfraz distinto cada hora.
+- **De 22:00 a 7:00**: pijama con gorro de dormir; se duerme antes y te pregunta si sigues despierto.
+- **De 7:00 a 8:30**: taza de café humeante.
+
 ## Un bicho por sesión
 
 Si tienes varias sesiones de Claude Code abiertas a la vez (por ejemplo, el blog de Bajovelo en una terminal y otro proyecto en otra), cada una tiene su propio bicho, con su disfraz y su nombre debajo: el que le pongas con `/rename` en Claude Code o, si no, el de la carpeta. El que despliega es el que brinda; el que termina es el que te lee la respuesta. Cuando cierras una sesión, su bicho se despide y se va. Como mucho salen 4; si hay más, el que lleve más rato parado se cambia a la sesión nueva.
