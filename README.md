@@ -170,6 +170,14 @@ Ajustes → General → **Editar frases…** crea `~/.carita/frases.json` con to
 
 El dibujo está en `face.html`: frases (`FRASES`), colores en `:root` (`--clay`, `--leaf`…). Puedes abrir `face.html` en el navegador para ver la demo. Tras cambiarlo, vuelve a ejecutar `bash install.sh`.
 
+## Actualizar
+
+Menú → **Buscar actualizaciones…**. Si hay una versión nueva, Carita te lo dice en el bocadillo y en el menú aparece **«Actualizar a la X.Y.Z…»**: la descarga, sustituye la app, actualiza los scripts de `~/.carita` y se reinicia sola, sin tocar la terminal.
+
+Además lo mira sola una vez al día (se desactiva en Ajustes → General). Es lo único que sale de tu Mac: una consulta a GitHub por la última versión.
+
+Si trabajas con el código: `git pull && bash install.sh`.
+
 ## Desinstalar
 
 ```bash

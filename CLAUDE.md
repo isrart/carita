@@ -19,6 +19,7 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 | `Settings.swift` | `Config` (`~/.carita/config.json`, única fuente de verdad; migra lo que había en `UserDefaults`), `ConfigStore` (guarda y recarga si se edita a mano) y la ventana de Ajustes en SwiftUI. |
 | `Diagnostics.swift` | Ventana de diagnóstico (semáforos, reinstalar hooks, probar, copiar informe) y `Scripts`: copia `hook.sh`/`carita.py` de la app a `~/.carita` (también al arrancar si no coinciden). |
 | `Stats.swift` | Historial (`~/.carita/historial.jsonl`, rotación a `historial-resumen.json`) y ventana de estadísticas con Swift Charts. |
+| `Updater.swift` | Buscar actualizaciones (API de Releases de GitHub, repo público) y actualizar con un clic: descarga con `URLSession`, `ditto`, verifica firma y versión, sustituye la app y la relanza. |
 | `face.html` | El personaje: SVG + CSS + JS. Sirve a la vez de **demo en el navegador** (sin `window.webkit`) y de cara dentro de la app (`html.app`). API global `window.carita`: `set(state)`, `poke()`, `look(x,y)`, `reply(text)`, `talking(bool)`, `costume(name)`, `travel(dir)`, `mask(bool)`, `say(text)`, `hidden(bool)`, `config({nombre, breakAfter, maskAfter, breakGap, frases})`. |
 | `hook.sh` | Lo ejecuta Claude Code en cada evento. Lee el JSON por stdin, decide el estado y lo escribe de forma atómica. |
 | `carita.py` | Ayudante de los hooks: elige disfraz por la ruta del proyecto, detecta deploys en Bash y si salieron bien, y resume la última respuesta (desde `transcript_path`) para la voz. Imprime solo el estado final. |
@@ -42,7 +43,7 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 - **Solo el bicho recibe clics:** el panel cambia `ignoresMouseEvents` según el ratón esté o no sobre el cuerpo. No romperlo con ventanas nuevas.
 - **Nada sale del Mac** salvo lo que se pida explícitamente (p. ej., buscar actualizaciones).
 - **Ajustes solo en `config.json`**, nunca en `UserDefaults` (salvo la posición de la ventana, que guarda AppKit). Cualquier cambio pasa por `store.c` y se aplica en `configChanged(from:)`.
-- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Settings.swift`, `Diagnostics.swift` y `Stats.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
+- Swift: modo `-swift-version 5`, macOS 13+, sin dependencias externas. Archivos: `main.swift`, `Settings.swift`, `Diagnostics.swift`, `Stats.swift` y `Updater.swift` (si se añade otro, actualizar `build.sh`). Evitar closures `@Sendable` que toquen estado del main actor: usar `Timer` con selector, como el resto del código.
 
 ## Cómo probar
 
@@ -59,6 +60,7 @@ Carita.app (main.swift) ── lee esos archivos ──▶ WKWebView con face.ht
 
 ## Versiones y commits
 
+- Para publicar: sube `VERSION`, commit, `git tag vX.Y.Z && git push --tags`. El workflow comprueba que la etiqueta coincide con `VERSION` y publica la Release con `Carita.zip`; las apps instaladas la ven en «Buscar actualizaciones».
 - Versión en `VERSION` (semver). Súbela en cada mejora que llegue al usuario.
 - Un commit por tarea del `ROADMAP.md`, mensaje en español.
 - Actualiza `README.md` cuando cambie algo que el usuario ve.

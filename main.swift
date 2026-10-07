@@ -483,6 +483,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     let settingsWindow = SettingsWindow()
     let diagnosticsWindow = DiagnosticsWindow()
     let statsWindow = StatsWindow()
+    let updater = Updater()
+    var updateTimer: Timer?
     var lastArrival: (state: String, at: Date)?
     var appVersion: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?" }
     var cfg: Config { store.c }
@@ -589,6 +591,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         interruptions.start()
         wasAway = away
         registerHotKeys()
+        updater.onMessage = { [weak self] text in self?.notice(text) }
+        updater.onAvailable = { [weak self] _ in self?.refreshMenu() }
+        updateTimer = Timer.scheduledTimer(timeInterval: 3600, target: self, selector: #selector(dailyUpdateCheck),
+                                           userInfo: nil, repeats: true)
+        updateTimer?.tolerance = 600
         refreshMenu()
         scheduleUnmute()
 
@@ -708,6 +715,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         if away { js("carita.hidden(true)") }
         sendFaceConfig()
         if let msg = pendingNotice { pendingNotice = nil; notice(msg) }
+        dailyUpdateCheck()
         if ProcessInfo.processInfo.environment["CARITA_SNAPSHOT"] != nil {
             openSettings()
             openDiagnostics()
@@ -1065,6 +1073,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         let menu = NSMenu()
         menu.autoenablesItems = false
 
+        if let rel = updater.available {
+            let up = NSMenuItem(title: "Actualizar a la \(rel.version)…", action: #selector(installUpdate), keyEquivalent: "")
+            up.target = self
+            menu.addItem(up)
+            menu.addItem(.separator())
+        }
         if let why = dndReason {
             let info = NSMenuItem(title: "No molestar: \(why)", action: nil, keyEquivalent: "")
             info.isEnabled = false
@@ -1108,6 +1122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
         addToggle(menu, "Abrir al iniciar sesión", SMAppService.mainApp.status == .enabled, #selector(toggleLogin))
         menu.addItem(.separator())
         addSubmenu(menu, "Probar expresión", testStates.map { ($0.0, $0.1 as Any, false) }, #selector(test(_:)))
+        let check = NSMenuItem(title: "Buscar actualizaciones…", action: #selector(checkUpdates), keyEquivalent: "")
+        check.target = self
+        menu.addItem(check)
         let stats = NSMenuItem(title: "Estadísticas…", action: #selector(openStats), keyEquivalent: "")
         stats.target = self
         menu.addItem(stats)
@@ -1241,6 +1258,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler
     }
 
     @objc func openStats() { statsWindow.show() }
+
+    @objc func checkUpdates() {
+        store.c.ultimaComprobacion = Date().timeIntervalSince1970
+        updater.check(interactive: true)
+    }
+
+    /// Una vez al día como mucho, y solo si está activado en Ajustes.
+    @objc func dailyUpdateCheck() {
+        guard cfg.buscarActualizaciones else { return }
+        let last = cfg.ultimaComprobacion.map { Date(timeIntervalSince1970: $0) } ?? .distantPast
+        guard Date().timeIntervalSince(last) > 20 * 3600 else { return }
+        store.c.ultimaComprobacion = Date().timeIntervalSince1970
+        updater.check(interactive: false)
+    }
+
+    @objc func installUpdate() { updater.install() }
 
     @objc func openDiagnostics() {
         diagnosticsWindow.show(info: DiagnosticsInfo(

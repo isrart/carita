@@ -34,6 +34,8 @@ struct Config: Codable, Equatable {
     var noMolestarPantalla = true
     var atajoMostrar = Shortcut.toggleDefault.array   // [] = sin atajo
     var atajoCallar = Shortcut.muteDefault.array
+    var buscarActualizaciones = true   // una vez al día, en silencio
+    var ultimaComprobacion: Double?
     var oculta = false
     var silenciadaHasta: Double?  // segundos desde 1970
 
@@ -49,7 +51,7 @@ struct Config: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case nombre, tamano, disfraz, leerRespuestas, avisosVoz, irABuscarte, voz, velocidad, tono
         case descansoMinutos, antifazMinutos, pausaMinutos, disfraces, noMolestarCamara, noMolestarPantalla
-        case atajoMostrar, atajoCallar, oculta, silenciadaHasta
+        case atajoMostrar, atajoCallar, oculta, silenciadaHasta, buscarActualizaciones, ultimaComprobacion
     }
 
     init() {}
@@ -77,6 +79,8 @@ struct Config: Codable, Equatable {
         atajoMostrar = v(.atajoMostrar, d.atajoMostrar)
         atajoCallar = v(.atajoCallar, d.atajoCallar)
         oculta = v(.oculta, d.oculta)
+        buscarActualizaciones = v(.buscarActualizaciones, d.buscarActualizaciones)
+        ultimaComprobacion = try? c.decode(Double.self, forKey: .ultimaComprobacion)
         silenciadaHasta = try? c.decode(Double.self, forKey: .silenciadaHasta)
     }
 
@@ -254,6 +258,11 @@ struct GeneralTab: View {
                 }
             } footer: {
                 Hint("Abre ~/.carita/frases.json (lo crea con las frases de serie si no existe). Cada estado que pongas sustituye a sus frases; con \"+done\" añades en vez de sustituir. Al guardar, la siguiente frase ya es la nueva.")
+            }
+            Section {
+                Toggle("Buscar actualizaciones una vez al día", isOn: $store.c.buscarActualizaciones)
+            } footer: {
+                Hint("Pregunta a GitHub por la última versión (es lo único que sale del Mac). Si hay una nueva, te lo dice en el bocadillo.")
             }
             Section {
                 Toggle("Abrir al iniciar sesión", isOn: Binding(get: { login }, set: { on in
